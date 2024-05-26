@@ -6,6 +6,10 @@ use allegro_font::*;
 use allegro_sys::*;
 use nalgebra::{Matrix4, Point2, Vector2, Vector3};
 
+const UNSELECTED: Color = Color::from_rgb_f(0.5, 0.5, 0.9);
+const LABEL: Color = Color::from_rgb_f(0.8 * 0.5, 0.8 * 0.5, 0.8 * 0.9);
+const SELECTED: Color = Color::from_rgb_f(1., 1., 1.);
+
 const HORIZ_SPACE: f32 = 48.;
 const VERT_SPACE: f32 = 16.;
 const BUTTON_WIDTH: f32 = 128.;
@@ -65,14 +69,7 @@ impl Button
 
 	fn draw(&self, state: &game_state::GameState)
 	{
-		let c_ui = if self.selected
-		{
-			Color::from_rgb_f(1., 1., 1.)
-		}
-		else
-		{
-			Color::from_rgb(95, 205, 228)
-		};
+		let c_ui = if self.selected { SELECTED } else { UNSELECTED };
 
 		state.core.draw_text(
 			state.ui_font(),
@@ -173,14 +170,7 @@ impl Toggle
 
 	fn draw(&self, state: &game_state::GameState)
 	{
-		let c_ui = if self.selected
-		{
-			Color::from_rgb_f(1., 1., 1.)
-		}
-		else
-		{
-			Color::from_rgb(95, 205, 228)
-		};
+		let c_ui = if self.selected { SELECTED } else { UNSELECTED };
 
 		state.core.draw_text(
 			state.ui_font(),
@@ -286,14 +276,7 @@ impl Slider
 	fn draw(&self, state: &game_state::GameState)
 	{
 		let s = state.options.ui_scale;
-		let c_ui = if self.selected
-		{
-			Color::from_rgb_f(1., 1., 1.)
-		}
-		else
-		{
-			Color::from_rgb(95, 205, 228)
-		};
+		let c_ui = if self.selected { SELECTED } else { UNSELECTED };
 
 		let w = s * self.width();
 		let cursor_x =
@@ -458,7 +441,7 @@ impl Label
 	{
 		state.core.draw_text(
 			state.ui_font(),
-			Color::from_rgb_f(0.8 * 0.37, 0.8 * 0.8, 0.8 * 0.89),
+			LABEL,
 			self.loc.x,
 			self.loc.y - state.ui_font().get_line_height() as f32 / 2.,
 			FontAlign::Centre,

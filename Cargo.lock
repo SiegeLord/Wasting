@@ -56,9 +56,9 @@ dependencies = [
 
 [[package]]
 name = "allegro"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fb1d5b41b352c063a96d44077b729e44dabb9e60e5ff0f4daf5307a9129ff5a"
+checksum = "42101c78b8cd1e89a1b0a5514870df99f0dedbd4371d41d2874b520c38554318"
 dependencies = [
  "allegro-sys",
  "allegro_util",
@@ -68,9 +68,9 @@ dependencies = [
 
 [[package]]
 name = "allegro-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6418db699da86b0eafa49f5b5911946f8e5c3bef993721a969d4bdac5e0d1207"
+checksum = "b9b635c4c207f3937d78d9c80f5f0e2fae672c46ed95a98ba85f3d172afb53cc"
 dependencies = [
  "allegro_util",
  "libc",
@@ -78,9 +78,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_acodec"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "984641fa1c9cb4e4489e84d2fe86c01a723136c2653ecca01f648f7d45b2c062"
+checksum = "9393e8413770e98f0980b51df741a2f5a60202e502021a123291491162e7b7a0"
 dependencies = [
  "allegro",
  "allegro_acodec-sys",
@@ -89,9 +89,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_acodec-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1415f938b05ebad14c9cedb10e8ced3c4e3dcd401a4e5aa852a607b59e510088"
+checksum = "44866aa7958184dc9187e39525499a4b946adee609e18740c3961947ed337e10"
 dependencies = [
  "allegro_util",
  "libc",
@@ -99,9 +99,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_audio"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9b2b7d0437b20fc2419a33f85e957eb5ad6ee3ffbf07e48b7cbc4f697e98f36"
+checksum = "ecbbd81ff9ad6a5b1e8bbd22a709b62f20fda99f3127495eae36c67f5e4cd840"
 dependencies = [
  "allegro",
  "allegro_audio-sys",
@@ -111,9 +111,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_audio-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6d970a76b0ce10fa51f5e9ea35b1363ef31a57d867e15faf2de2af7a2c09911"
+checksum = "01256818c9b71b245829931d00d75484a7332ab02b648a23d8606e001411f457"
 dependencies = [
  "allegro-sys",
  "allegro_util",
@@ -122,9 +122,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_color"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa940e1a650a13b985e83fc4cf6e75e24872d753944c9c95c61b432a21724f79"
+checksum = "4c10d106c5f315ff87184036766d4c96cd392a95068406c95bd0830be63a132f"
 dependencies = [
  "allegro",
  "allegro_color-sys",
@@ -134,9 +134,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_color-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a990994de3cb7d061f2350acad99fd0b220f6461b068eed09c05949f4ffa0a38"
+checksum = "5c641fd0a9c138e8a32c4a8e64d1c8c66f5aadde8b0441c79cfdcce6f09a43d0"
 dependencies = [
  "allegro-sys",
  "allegro_util",
@@ -145,9 +145,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_dialog"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d33838f2312e07a5ae1e2599ef3736c1f636e95fb4683f578fdaab86b5957dfc"
+checksum = "d82373ea63d130ec56323d899536e15f4e1beae9925df40ddd04b49103940cf0"
 dependencies = [
  "allegro",
  "allegro_dialog-sys",
@@ -157,9 +157,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_dialog-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90b0e293f0e11791b11ae74be0aee110b80785c785115a272e8ca56039abde54"
+checksum = "6871915bd83c7b02eb13cbaa0618b931b680d5809a2f6f5b7380010981edbcd1"
 dependencies = [
  "allegro-sys",
  "allegro_util",
@@ -168,9 +168,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_font"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db238e7cc1786e29a76351de0a3674a89c923a58a92262e489c0a5114c8b451b"
+checksum = "ae599c665eaf8907dc6e29eac99de65073015deb690a79b0909ee7dd050aa1d2"
 dependencies = [
  "allegro",
  "allegro-sys",
@@ -181,9 +181,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_font-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb7f196e24175f5f5cc0aaa161c31f761c54630f141e5699c9316e1a677b53a6"
+checksum = "2ace8efb7313c3638f0f1de7ff728056d339254d77a70fae7bd95aa45c157364"
 dependencies = [
  "allegro-sys",
  "allegro_util",
@@ -192,9 +192,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_image"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "888429aa6920cbdc678fa335cd49addc01c22e7c67c49e1aedc124416bcc596b"
+checksum = "f74269b799fd689d1f19d1c1d6689cd12271dae389b3aa01f5ec1ee753514978"
 dependencies = [
  "allegro",
  "allegro_image-sys",
@@ -204,9 +204,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_image-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fa13e4076c5ca98b27c3867d8443a74280704d038e8cbe708a3ca09a578ca3e"
+checksum = "6bdbc5454db60eb9951aca53270ebbfe84140f4816c255c651a1d46e28778240"
 dependencies = [
  "allegro_util",
  "libc",
@@ -214,9 +214,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_primitives"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64fe31d45d93983cff866151cf39752fc9a1224d621227ab9155d6fa26446806"
+checksum = "c99999de59c3fe566a536d52687908f533d7b4e1d3949763384c3a9211d73c03"
 dependencies = [
  "allegro",
  "allegro-sys",
@@ -226,9 +226,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_primitives-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "940e0da99aa94077180b581cb7d1befeebabc50bdcaf9ba982248733721bd4ee"
+checksum = "790c5459130c51bb1157e131164a6c579727f06f2ecb9196bbb0589e3c56a718"
 dependencies = [
  "allegro-sys",
  "allegro_util",
@@ -237,9 +237,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_ttf"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "563a128324e4231ab1620771b00c2840dcca855d1cf3018f43d1161166dd476b"
+checksum = "55125ad902e436473ef18daecb5364f21f3e34a542a7ca667d4341504ab619f7"
 dependencies = [
  "allegro",
  "allegro_font",
@@ -250,9 +250,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_ttf-sys"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8af8d6a3493b1eaec26b702ef155066d694667f59cb1b98d3dbe8be5d17a8536"
+checksum = "fc7105e63b539409e106f7d4095cb49c8b1df2bed5101bacebeb8c91afa736aa"
 dependencies = [
  "allegro-sys",
  "allegro_font-sys",
@@ -262,9 +262,9 @@ dependencies = [
 
 [[package]]
 name = "allegro_util"
-version = "0.0.44"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a14d47c8987b631b22dde9ddc2e40f35848d494c55a1e2d0e281685110498900"
+checksum = "4f90bed173b09ba81184041bf13056579751483f7f857120ba6e2782e85a21b7"
 dependencies = [
  "libc",
 ]
