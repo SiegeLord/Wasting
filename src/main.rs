@@ -1,3 +1,4 @@
+#![feature(float_next_up_down)]
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 #![allow(dead_code)]

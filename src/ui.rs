@@ -239,14 +239,14 @@ struct Slider
 	max_pos: f32,
 	grabbed: bool,
 	selected: bool,
-	round_to: Option<f32>,
+	round_to: f32,
 	action_fn: fn(f32) -> Action,
 }
 
 impl Slider
 {
 	fn new(
-		w: f32, h: f32, cur_pos: f32, min_pos: f32, max_pos: f32, round_to: Option<f32>,
+		w: f32, h: f32, cur_pos: f32, min_pos: f32, max_pos: f32, round_to: f32,
 		action_fn: fn(f32) -> Action,
 	) -> Self
 	{
@@ -271,6 +271,11 @@ impl Slider
 	fn height(&self) -> f32
 	{
 		self.size.y
+	}
+
+	fn round_cur_pos(&mut self)
+	{
+		self.cur_pos = (self.cur_pos / self.round_to).round() * self.round_to;
 	}
 
 	fn draw(&self, state: &game_state::GameState)
@@ -299,21 +304,14 @@ impl Slider
 		}
 		//state.prim.draw_filled_circle(self.loc.x - w / 2. + w * self.cur_pos / self.max_pos, self.loc.y, 8., c_ui);
 
-		let text = if let Some(round_to) = self.round_to
+		let text = format!("{:.2}", self.cur_pos);
+		let text = if text.contains('.')
 		{
-			let prec = if let Some((_, post)) = round_to.to_string().split_once(".")
-			{
-				post.len()
-			}
-			else
-			{
-				0
-			};
-			format!("{:.*}", prec, (self.cur_pos / round_to).round() * round_to)
+			text.trim_end_matches("0").trim_end_matches(".")
 		}
 		else
 		{
-			format!("{:.2}", self.cur_pos)
+			&text
 		};
 
 		state.core.draw_text(
@@ -322,7 +320,7 @@ impl Slider
 			cursor_x.floor(),
 			self.loc.y - state.ui_font().get_line_height() as f32 / 2.,
 			FontAlign::Centre,
-			&text,
+			text,
 		);
 	}
 
@@ -342,6 +340,7 @@ impl Slider
 					{
 						self.cur_pos = self.min_pos
 							+ (x - start.x) / (s * self.width()) * (self.max_pos - self.min_pos);
+						self.round_cur_pos();
 						return Some((self.action_fn)(self.cur_pos));
 					}
 					else
@@ -363,19 +362,13 @@ impl Slider
 					self.grabbed = true;
 					self.cur_pos = self.min_pos
 						+ (x - start.x) / (s * self.width()) * (self.max_pos - self.min_pos);
+					self.round_cur_pos();
 					return Some((self.action_fn)(self.cur_pos));
 				}
 			}
 			Event::KeyDown { keycode, .. } =>
 			{
-				let increment = if let Some(round_to) = self.round_to
-				{
-					round_to
-				}
-				else
-				{
-					(self.max_pos - self.min_pos) / 25.
-				};
+				let increment = self.round_to;
 				if self.selected
 				{
 					match keycode
@@ -386,6 +379,7 @@ impl Slider
 							{
 								state.sfx.play_sound("data/ui2.ogg").unwrap();
 								self.cur_pos = utils::max(self.min_pos, self.cur_pos - increment);
+								self.round_cur_pos();
 								return Some((self.action_fn)(self.cur_pos));
 							}
 						}
@@ -395,6 +389,7 @@ impl Slider
 							{
 								state.sfx.play_sound("data/ui2.ogg").unwrap();
 								self.cur_pos = utils::min(self.max_pos, self.cur_pos + increment);
+								self.round_cur_pos();
 								return Some((self.action_fn)(self.cur_pos));
 							}
 						}
@@ -1054,7 +1049,7 @@ impl OptionsMenu
 					state.options.music_volume,
 					0.,
 					4.,
-					Some(0.1),
+					0.1,
 					|i| Action::MusicVolume(i),
 				)),
 			],
@@ -1066,7 +1061,7 @@ impl OptionsMenu
 					state.options.music_volume,
 					0.,
 					4.,
-					Some(0.1),
+					0.1,
 					|i| Action::SfxVolume(i),
 				)),
 			],
@@ -1078,7 +1073,7 @@ impl OptionsMenu
 					state.options.ui_scale,
 					1.,
 					4.,
-					Some(0.25),
+					0.25,
 					|i| Action::UiScale(i),
 				)),
 			],
@@ -1090,7 +1085,7 @@ impl OptionsMenu
 					state.options.camera_speed as f32,
 					1.,
 					10.,
-					Some(1.),
+					1.,
 					|i| Action::CameraSpeed(i as i32),
 				)),
 			],
