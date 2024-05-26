@@ -186,11 +186,11 @@ fn real_main() -> Result<()>
 
 			state.core.flip_display();
 
-			if state.tick % 120 == 0
+			if (state.tick + 1) % 120 == 0
 			{
-				println!("FPS: {:.2}", 1. / (frame_start - prev_frame_start));
+				println!("FPS: {:.2}", 120. / (frame_start - prev_frame_start));
+				prev_frame_start = frame_start;
 			}
-			prev_frame_start = frame_start;
 			logics_without_draw = 0;
 			draw = false;
 		}
