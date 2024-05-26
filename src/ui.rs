@@ -6,15 +6,15 @@ use allegro_font::*;
 use allegro_sys::*;
 use nalgebra::{Matrix4, Point2, Vector2, Vector3};
 
-const UNSELECTED: Color = Color::from_rgb_f(0.5, 0.5, 0.9);
-const LABEL: Color = Color::from_rgb_f(0.8 * 0.5, 0.8 * 0.5, 0.8 * 0.9);
-const SELECTED: Color = Color::from_rgb_f(1., 1., 1.);
+pub const UNSELECTED: Color = Color::from_rgb_f(0.5, 0.5, 0.9);
+pub const LABEL: Color = Color::from_rgb_f(0.8 * 0.5, 0.8 * 0.5, 0.8 * 0.9);
+pub const SELECTED: Color = Color::from_rgb_f(1., 1., 1.);
 
-const HORIZ_SPACE: f32 = 48.;
-const VERT_SPACE: f32 = 16.;
-const BUTTON_WIDTH: f32 = 128.;
-const BUTTON_HEIGHT: f32 = 16.;
-const CONTROL_WIDTH: f32 = 80.;
+pub const HORIZ_SPACE: f32 = 48.;
+pub const VERT_SPACE: f32 = 16.;
+pub const BUTTON_WIDTH: f32 = 128.;
+pub const BUTTON_HEIGHT: f32 = 16.;
+pub const CONTROL_WIDTH: f32 = 80.;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action

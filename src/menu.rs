@@ -2,6 +2,7 @@ use crate::error::Result;
 use crate::{components, controls, game_state, ui, utils};
 
 use allegro::*;
+use allegro_font::*;
 use allegro_sys::*;
 use nalgebra::{Matrix4, Point2};
 use rand::prelude::*;
@@ -74,6 +75,17 @@ impl Menu
 	{
 		state.core.clear_to_color(Color::from_rgb_f(0., 0., 0.5));
 		self.subscreens.draw(state);
+
+		let lh = state.ui_font().get_line_height() as f32;
+		state.core.draw_text(
+			state.ui_font(),
+			ui::UNSELECTED,
+			ui::HORIZ_SPACE,
+			state.buffer_height() - lh - ui::VERT_SPACE,
+			FontAlign::Left,
+			&format!("Version: {}", game_state::VERSION),
+		);
+
 		Ok(())
 	}
 
