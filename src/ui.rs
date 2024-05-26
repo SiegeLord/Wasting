@@ -35,10 +35,10 @@ struct Button
 
 impl Button
 {
-	fn new(x: f32, y: f32, w: f32, h: f32, text: &str, action: Action) -> Self
+	fn new(w: f32, h: f32, text: &str, action: Action) -> Self
 	{
 		Self {
-			loc: Point2::new(x, y),
+			loc: Point2::new(0., 0.),
 			size: Vector2::new(w, h),
 			text: text.into(),
 			action: action,
@@ -140,12 +140,11 @@ struct Toggle
 impl Toggle
 {
 	fn new(
-		x: f32, y: f32, w: f32, h: f32, cur_value: usize, texts: Vec<String>,
-		action_fn: fn(usize) -> Action,
+		w: f32, h: f32, cur_value: usize, texts: Vec<String>, action_fn: fn(usize) -> Action,
 	) -> Self
 	{
 		Self {
-			loc: Point2::new(x, y),
+			loc: Point2::new(0., 0.),
 			size: Vector2::new(w, h),
 			texts: texts,
 			cur_value: cur_value,
@@ -248,12 +247,12 @@ struct Slider
 impl Slider
 {
 	fn new(
-		x: f32, y: f32, w: f32, h: f32, cur_pos: f32, min_pos: f32, max_pos: f32,
-		round_to_integer: bool, action_fn: fn(f32) -> Action,
+		w: f32, h: f32, cur_pos: f32, min_pos: f32, max_pos: f32, round_to_integer: bool,
+		action_fn: fn(f32) -> Action,
 	) -> Self
 	{
 		Self {
-			loc: Point2::new(x, y),
+			loc: Point2::new(0., 0.),
 			size: Vector2::new(w, h),
 			cur_pos: cur_pos,
 			min_pos: min_pos,
@@ -417,10 +416,10 @@ struct Label
 
 impl Label
 {
-	fn new(x: f32, y: f32, w: f32, h: f32, text: &str) -> Self
+	fn new(w: f32, h: f32, text: &str) -> Self
 	{
 		Self {
-			loc: Point2::new(x, y),
+			loc: Point2::new(0., 0.),
 			size: Vector2::new(w, h),
 			text: text.into(),
 		}
@@ -574,7 +573,7 @@ struct WidgetList
 
 impl WidgetList
 {
-	fn new(cx: f32, cy: f32, widgets: &[&[Widget]]) -> Self
+	fn new(widgets: &[&[Widget]]) -> Self
 	{
 		let mut new_widgets = Vec::with_capacity(widgets.len());
 		let mut cur_selection = None;
@@ -598,7 +597,7 @@ impl WidgetList
 		}
 
 		Self {
-			pos: Point2::new(cx, cy),
+			pos: Point2::new(0., 0.),
 			widgets: new_widgets,
 			cur_selection: cur_selection.expect("No selectable widgets?"),
 		}
@@ -808,44 +807,22 @@ impl MainMenu
 		let w = 128.;
 		let h = 8.;
 
-		let widgets = WidgetList::new(
-			0.,
-			0.,
-			&[
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"New Game",
-					Action::Start,
-				))],
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"Controls",
-					Action::Forward(|s| SubScreen::ControlsMenu(ControlsMenu::new(s))),
-				))],
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"Options",
-					Action::Forward(|s| SubScreen::OptionsMenu(OptionsMenu::new(s))),
-				))],
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"Quit",
-					Action::Quit,
-				))],
-			],
-		);
+		let widgets = WidgetList::new(&[
+			&[Widget::Button(Button::new(w, h, "New Game", Action::Start))],
+			&[Widget::Button(Button::new(
+				w,
+				h,
+				"Controls",
+				Action::Forward(|s| SubScreen::ControlsMenu(ControlsMenu::new(s))),
+			))],
+			&[Widget::Button(Button::new(
+				w,
+				h,
+				"Options",
+				Action::Forward(|s| SubScreen::OptionsMenu(OptionsMenu::new(s))),
+			))],
+			&[Widget::Button(Button::new(w, h, "Quit", Action::Quit))],
+		]);
 		let mut res = Self { widgets: widgets };
 		res.resize(state);
 		res
@@ -903,7 +880,7 @@ impl ControlsMenu
 
 		for (&action, &inputs) in state.controls.get_actions_to_inputs()
 		{
-			let mut row = vec![Widget::Label(Label::new(0., 0., w, h, &action.to_str()))];
+			let mut row = vec![Widget::Label(Label::new(w, h, &action.to_str()))];
 			for i in 0..2
 			{
 				let input = inputs[i];
@@ -911,8 +888,6 @@ impl ControlsMenu
 					.map(|i| i.to_str().to_string())
 					.unwrap_or("None".into());
 				row.push(Widget::Button(Button::new(
-					0.,
-					0.,
 					w,
 					h,
 					&input_str,
@@ -922,8 +897,6 @@ impl ControlsMenu
 			widgets.push(row);
 		}
 		widgets.push(vec![Widget::Button(Button::new(
-			0.,
-			0.,
 			w,
 			h,
 			"Back",
@@ -931,7 +904,7 @@ impl ControlsMenu
 		))]);
 
 		let mut res = Self {
-			widgets: WidgetList::new(0., 0., &widgets.iter().map(|r| &r[..]).collect::<Vec<_>>()),
+			widgets: WidgetList::new(&widgets.iter().map(|r| &r[..]).collect::<Vec<_>>()),
 			accepting_input: false,
 		};
 		res.resize(state);
@@ -1061,10 +1034,8 @@ impl OptionsMenu
 
 		let widgets = [
 			vec![
-				Widget::Label(Label::new(0., 0., w, h, "Fullscreen")),
+				Widget::Label(Label::new(w, h, "Fullscreen")),
 				Widget::Toggle(Toggle::new(
-					0.,
-					0.,
 					w,
 					h,
 					state.options.fullscreen as usize,
@@ -1073,10 +1044,8 @@ impl OptionsMenu
 				)),
 			],
 			vec![
-				Widget::Label(Label::new(0., 0., w, h, "Music")),
+				Widget::Label(Label::new(w, h, "Music")),
 				Widget::Slider(Slider::new(
-					0.,
-					0.,
 					w,
 					h,
 					state.options.music_volume,
@@ -1087,10 +1056,8 @@ impl OptionsMenu
 				)),
 			],
 			vec![
-				Widget::Label(Label::new(0., 0., w, h, "SFX")),
+				Widget::Label(Label::new(w, h, "SFX")),
 				Widget::Slider(Slider::new(
-					0.,
-					0.,
 					w,
 					h,
 					state.options.sfx_volume,
@@ -1101,10 +1068,8 @@ impl OptionsMenu
 				)),
 			],
 			vec![
-				Widget::Label(Label::new(0., 0., w, h, "Scroll")),
+				Widget::Label(Label::new(w, h, "Scroll")),
 				Widget::Slider(Slider::new(
-					0.,
-					0.,
 					w,
 					h,
 					state.options.camera_speed as f32,
@@ -1114,18 +1079,11 @@ impl OptionsMenu
 					|i| Action::CameraSpeed(i as i32),
 				)),
 			],
-			vec![Widget::Button(Button::new(
-				0.,
-				0.,
-				w,
-				h,
-				"Back",
-				Action::Back,
-			))],
+			vec![Widget::Button(Button::new(w, h, "Back", Action::Back))],
 		];
 
 		let mut res = Self {
-			widgets: WidgetList::new(0., 0., &widgets.iter().map(|r| &r[..]).collect::<Vec<_>>()),
+			widgets: WidgetList::new(&widgets.iter().map(|r| &r[..]).collect::<Vec<_>>()),
 		};
 		res.resize(state);
 		res
@@ -1198,44 +1156,22 @@ impl InGameMenu
 		let w = 40.;
 		let h = 8.;
 
-		let widgets = WidgetList::new(
-			0.,
-			0.,
-			&[
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"Resume",
-					Action::Back,
-				))],
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"Controls",
-					Action::Forward(|s| SubScreen::ControlsMenu(ControlsMenu::new(s))),
-				))],
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"Options",
-					Action::Forward(|s| SubScreen::OptionsMenu(OptionsMenu::new(s))),
-				))],
-				&[Widget::Button(Button::new(
-					0.,
-					0.,
-					w,
-					h,
-					"Quit",
-					Action::MainMenu,
-				))],
-			],
-		);
+		let widgets = WidgetList::new(&[
+			&[Widget::Button(Button::new(w, h, "Resume", Action::Back))],
+			&[Widget::Button(Button::new(
+				w,
+				h,
+				"Controls",
+				Action::Forward(|s| SubScreen::ControlsMenu(ControlsMenu::new(s))),
+			))],
+			&[Widget::Button(Button::new(
+				w,
+				h,
+				"Options",
+				Action::Forward(|s| SubScreen::OptionsMenu(OptionsMenu::new(s))),
+			))],
+			&[Widget::Button(Button::new(w, h, "Quit", Action::MainMenu))],
+		]);
 		let mut res = Self { widgets };
 		res.resize(state);
 		res
