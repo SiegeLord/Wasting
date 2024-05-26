@@ -6,6 +6,12 @@ use allegro_font::*;
 use allegro_sys::*;
 use nalgebra::{Matrix4, Point2, Vector2, Vector3};
 
+const HORIZ_SPACE: f32 = 48.;
+const VERT_SPACE: f32 = 16.;
+const BUTTON_WIDTH: f32 = 128.;
+const BUTTON_HEIGHT: f32 = 16.;
+const CONTROL_WIDTH: f32 = 80.;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action
 {
@@ -18,6 +24,7 @@ pub enum Action
 	ToggleFullscreen,
 	ChangeInput(controls::Action, usize),
 	MouseSensitivity(f32),
+	UiScale(f32),
 	MusicVolume(f32),
 	SfxVolume(f32),
 	CameraSpeed(i32),
@@ -68,10 +75,10 @@ impl Button
 		};
 
 		state.core.draw_text(
-			&state.ui_font,
+			state.ui_font(),
 			c_ui,
 			self.loc.x.round(),
-			(self.loc.y - state.ui_font.get_line_height() as f32 / 2.).round(),
+			(self.loc.y - state.ui_font().get_line_height() as f32 / 2.).round(),
 			FontAlign::Centre,
 			&self.text,
 		);
@@ -79,8 +86,9 @@ impl Button
 
 	fn input(&mut self, state: &mut game_state::GameState, event: &Event) -> Option<Action>
 	{
-		let start = self.loc - self.size / 2.;
-		let end = self.loc + self.size / 2.;
+		let s = state.options.ui_scale;
+		let start = self.loc - s * self.size / 2.;
+		let end = self.loc + s * self.size / 2.;
 		match event
 		{
 			Event::MouseAxes { x, y, .. } =>
@@ -175,10 +183,10 @@ impl Toggle
 		};
 
 		state.core.draw_text(
-			&state.ui_font,
+			state.ui_font(),
 			c_ui,
 			self.loc.x,
-			self.loc.y - state.ui_font.get_line_height() as f32 / 2.,
+			self.loc.y - state.ui_font().get_line_height() as f32 / 2.,
 			FontAlign::Centre,
 			&self.texts[self.cur_value],
 		);
@@ -186,8 +194,9 @@ impl Toggle
 
 	fn input(&mut self, state: &mut game_state::GameState, event: &Event) -> Option<Action>
 	{
-		let start = self.loc - self.size / 2.;
-		let end = self.loc + self.size / 2.;
+		let s = state.options.ui_scale;
+		let start = self.loc - s * self.size / 2.;
+		let end = self.loc + s * self.size / 2.;
 		match event
 		{
 			Event::MouseAxes { x, y, .. } =>
@@ -240,14 +249,14 @@ struct Slider
 	max_pos: f32,
 	grabbed: bool,
 	selected: bool,
-	round_to_integer: bool,
+	round_to: Option<f32>,
 	action_fn: fn(f32) -> Action,
 }
 
 impl Slider
 {
 	fn new(
-		w: f32, h: f32, cur_pos: f32, min_pos: f32, max_pos: f32, round_to_integer: bool,
+		w: f32, h: f32, cur_pos: f32, min_pos: f32, max_pos: f32, round_to: Option<f32>,
 		action_fn: fn(f32) -> Action,
 	) -> Self
 	{
@@ -259,7 +268,7 @@ impl Slider
 			max_pos: max_pos,
 			grabbed: false,
 			selected: false,
-			round_to_integer: round_to_integer,
+			round_to: round_to,
 			action_fn: action_fn,
 		}
 	}
@@ -276,6 +285,7 @@ impl Slider
 
 	fn draw(&self, state: &game_state::GameState)
 	{
+		let s = state.options.ui_scale;
 		let c_ui = if self.selected
 		{
 			Color::from_rgb_f(1., 1., 1.)
@@ -285,41 +295,49 @@ impl Slider
 			Color::from_rgb(95, 205, 228)
 		};
 
-		let w = self.width();
+		let w = s * self.width();
 		let cursor_x =
 			self.loc.x - w / 2. + w * (self.cur_pos - self.min_pos) / (self.max_pos - self.min_pos);
 		let start_x = self.loc.x - w / 2.;
 		let end_x = self.loc.x + w / 2.;
 
-		let ww = 16.;
+		let ww = s * HORIZ_SPACE;
 		if cursor_x - start_x > ww
 		{
 			state
 				.prim
-				.draw_line(start_x, self.loc.y, cursor_x - ww, self.loc.y, c_ui, 4.);
+				.draw_line(start_x, self.loc.y, cursor_x - ww, self.loc.y, c_ui, s * 4.);
 		}
 		if end_x - cursor_x > ww
 		{
 			state
 				.prim
-				.draw_line(cursor_x + ww, self.loc.y, end_x, self.loc.y, c_ui, 4.);
+				.draw_line(cursor_x + ww, self.loc.y, end_x, self.loc.y, c_ui, s * 4.);
 		}
 		//state.prim.draw_filled_circle(self.loc.x - w / 2. + w * self.cur_pos / self.max_pos, self.loc.y, 8., c_ui);
 
-		let text = if self.round_to_integer
+		let text = if let Some(round_to) = self.round_to
 		{
-			format!("{}", (self.cur_pos + 0.5) as i32)
+			let prec = if let Some((_, post)) = round_to.to_string().split_once(".")
+			{
+				post.len()
+			}
+			else
+			{
+				0
+			};
+			format!("{:.*}", prec, (self.cur_pos / round_to).round() * round_to)
 		}
 		else
 		{
-			format!("{:.1}", self.cur_pos)
+			format!("{:.2}", self.cur_pos)
 		};
 
 		state.core.draw_text(
-			&state.ui_font,
+			state.ui_font(),
 			c_ui,
 			cursor_x.floor(),
-			self.loc.y - state.ui_font.get_line_height() as f32 / 2.,
+			self.loc.y - state.ui_font().get_line_height() as f32 / 2.,
 			FontAlign::Centre,
 			&text,
 		);
@@ -327,8 +345,9 @@ impl Slider
 
 	fn input(&mut self, state: &mut game_state::GameState, event: &Event) -> Option<Action>
 	{
-		let start = self.loc - self.size / 2.;
-		let end = self.loc + self.size / 2.;
+		let s = state.options.ui_scale;
+		let start = self.loc - s * self.size / 2.;
+		let end = self.loc + s * self.size / 2.;
 		match event
 		{
 			Event::MouseAxes { x, y, .. } =>
@@ -339,7 +358,7 @@ impl Slider
 					if self.grabbed
 					{
 						self.cur_pos = self.min_pos
-							+ (x - start.x) / self.width() * (self.max_pos - self.min_pos);
+							+ (x - start.x) / (s * self.width()) * (self.max_pos - self.min_pos);
 						return Some((self.action_fn)(self.cur_pos));
 					}
 					else
@@ -359,16 +378,16 @@ impl Slider
 				{
 					state.sfx.play_sound("data/ui2.ogg").unwrap();
 					self.grabbed = true;
-					self.cur_pos =
-						self.min_pos + (x - start.x) / self.width() * (self.max_pos - self.min_pos);
+					self.cur_pos = self.min_pos
+						+ (x - start.x) / (s * self.width()) * (self.max_pos - self.min_pos);
 					return Some((self.action_fn)(self.cur_pos));
 				}
 			}
 			Event::KeyDown { keycode, .. } =>
 			{
-				let increment = if self.round_to_integer
+				let increment = if let Some(round_to) = self.round_to
 				{
-					1.
+					round_to
 				}
 				else
 				{
@@ -438,10 +457,10 @@ impl Label
 	fn draw(&self, state: &game_state::GameState)
 	{
 		state.core.draw_text(
-			&state.ui_font,
+			state.ui_font(),
 			Color::from_rgb_f(0.8 * 0.37, 0.8 * 0.8, 0.8 * 0.89),
 			self.loc.x,
-			self.loc.y - state.ui_font.get_line_height() as f32 / 2.,
+			self.loc.y - state.ui_font().get_line_height() as f32 / 2.,
 			FontAlign::Centre,
 			&self.text,
 		);
@@ -727,8 +746,9 @@ impl WidgetList
 
 	fn resize(&mut self, state: &game_state::GameState)
 	{
-		let w_space = 8.;
-		let h_space = 8.;
+		let s = state.options.ui_scale;
+		let w_space = s * HORIZ_SPACE;
+		let h_space = s * VERT_SPACE;
 		let cx = self.pos.x;
 		let cy = self.pos.y;
 
@@ -750,15 +770,15 @@ impl WidgetList
 				}
 				if j > 0
 				{
-					x += (w_space + w.width()) / 2.;
+					x += (w_space + s * w.width()) / 2.;
 				}
 				let mut loc = w.loc();
 				loc.x = x;
 				w.set_loc(loc);
-				max_height = utils::max(max_height, w.height());
+				max_height = utils::max(max_height, s * w.height());
 				if j + 1 < num_cols
 				{
-					x += (w_space + w.width()) / 2.;
+					x += (w_space + s * w.width()) / 2.;
 				}
 			}
 
@@ -804,8 +824,8 @@ impl MainMenu
 {
 	pub fn new(state: &game_state::GameState) -> Self
 	{
-		let w = 128.;
-		let h = 8.;
+		let w = BUTTON_WIDTH;
+		let h = BUTTON_HEIGHT;
 
 		let widgets = WidgetList::new(&[
 			&[Widget::Button(Button::new(w, h, "New Game", Action::Start))],
@@ -859,8 +879,8 @@ impl ControlsMenu
 {
 	pub fn new(state: &game_state::GameState) -> Self
 	{
-		let w = 40.;
-		let h = 8.;
+		let w = CONTROL_WIDTH;
+		let h = BUTTON_HEIGHT;
 
 		let mut widgets = vec![];
 		// widgets.push(vec![
@@ -1029,8 +1049,8 @@ impl OptionsMenu
 {
 	pub fn new(state: &game_state::GameState) -> Self
 	{
-		let w = 50.;
-		let h = 8.;
+		let w = BUTTON_WIDTH;
+		let h = BUTTON_HEIGHT;
 
 		let widgets = [
 			vec![
@@ -1051,7 +1071,7 @@ impl OptionsMenu
 					state.options.music_volume,
 					0.,
 					4.,
-					false,
+					Some(0.1),
 					|i| Action::MusicVolume(i),
 				)),
 			],
@@ -1060,11 +1080,23 @@ impl OptionsMenu
 				Widget::Slider(Slider::new(
 					w,
 					h,
-					state.options.sfx_volume,
+					state.options.music_volume,
 					0.,
 					4.,
-					false,
+					Some(0.1),
 					|i| Action::SfxVolume(i),
+				)),
+			],
+			vec![
+				Widget::Label(Label::new(w, h, "UI Scale")),
+				Widget::Slider(Slider::new(
+					w,
+					h,
+					state.options.ui_scale,
+					1.,
+					4.,
+					Some(0.25),
+					|i| Action::UiScale(i),
 				)),
 			],
 			vec![
@@ -1075,7 +1107,7 @@ impl OptionsMenu
 					state.options.camera_speed as f32,
 					1.,
 					10.,
-					true,
+					Some(1.),
 					|i| Action::CameraSpeed(i as i32),
 				)),
 			],
@@ -1124,6 +1156,11 @@ impl OptionsMenu
 					state.sfx.set_sfx_volume(v);
 					options_changed = true;
 				}
+				Action::UiScale(v) =>
+				{
+					state.options.ui_scale = v;
+					options_changed = true;
+				}
 				_ => return Some(action),
 			}
 		}
@@ -1153,8 +1190,8 @@ impl InGameMenu
 {
 	pub fn new(state: &game_state::GameState) -> Self
 	{
-		let w = 40.;
-		let h = 8.;
+		let w = BUTTON_WIDTH;
+		let h = BUTTON_HEIGHT;
 
 		let widgets = WidgetList::new(&[
 			&[Widget::Button(Button::new(w, h, "Resume", Action::Back))],

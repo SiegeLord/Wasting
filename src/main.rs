@@ -79,7 +79,7 @@ fn real_main() -> Result<()>
 		.map_err(|_| "Couldn't create display".to_string())?;
 
 	let shader = make_shader(&mut display)?;
-	state.resize_display(&display);
+	state.resize_display(&display)?;
 
 	let timer = Timer::new(&state.core, utils::DT as f64)
 		.map_err(|_| "Couldn't create timer".to_string())?;
@@ -111,6 +111,7 @@ fn real_main() -> Result<()>
 
 	let mut logics_without_draw = 0;
 	let mut old_fullscreen = state.options.fullscreen;
+	let mut old_ui_scale = state.options.ui_scale;
 	let mut prev_frame_start = state.core.get_time();
 	if state.options.grab_mouse
 	{
@@ -125,8 +126,10 @@ fn real_main() -> Result<()>
 		{
 			if state.display_width != display.get_width() as f32
 				|| state.display_height != display.get_height() as f32
+				|| old_ui_scale != state.options.ui_scale
 			{
-				state.resize_display(&display);
+				old_ui_scale = state.options.ui_scale;
+				state.resize_display(&display)?;
 				match &mut cur_screen
 				{
 					Screen::Game(game) => game.resize(&state),
@@ -289,6 +292,8 @@ fn real_main() -> Result<()>
 			}
 		}
 	}
+	// To avoid clicks for the final sound.
+	state.core.rest(0.25);
 
 	Ok(())
 }

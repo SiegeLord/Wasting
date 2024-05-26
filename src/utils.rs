@@ -2,6 +2,8 @@ use crate::error::{Error, Result};
 use allegro::*;
 use allegro_audio::*;
 use allegro_color::*;
+use allegro_font::*;
+use allegro_ttf::*;
 use nalgebra;
 use rand::prelude::*;
 use serde::de::DeserializeOwned;
@@ -156,6 +158,13 @@ pub fn load_bitmap(core: &Core, file: &str) -> Result<Bitmap>
 pub fn load_sample(audio: &AudioAddon, path: &str) -> Result<Sample>
 {
 	Ok(Sample::load(audio, path).map_err(|_| format!("Couldn't load '{}'", path))?)
+}
+
+pub fn load_ttf_font(ttf: &TtfAddon, file: &str, size: i32) -> Result<Font>
+{
+	Ok(ttf
+		.load_ttf_font(file, size, Flag::zero())
+		.map_err(|_| format!("Couldn't load {}", file))?)
 }
 
 pub fn nearest_line_point(v1: Point2<f32>, v2: Point2<f32>, test_point: Point2<f32>)

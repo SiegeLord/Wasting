@@ -23,6 +23,7 @@ pub struct Options
 	pub music_volume: f32,
 	pub camera_speed: i32,
 	pub grab_mouse: bool,
+	pub ui_scale: f32,
 
 	pub controls: controls::Controls,
 }
@@ -41,6 +42,7 @@ impl Default for Options
 			music_volume: 1.,
 			camera_speed: 4,
 			grab_mouse: false,
+			ui_scale: 1.,
 			controls: controls::Controls::new(),
 		}
 	}
@@ -67,7 +69,7 @@ pub struct GameState
 
 	pub sfx: sfx::Sfx,
 	pub atlas: atlas::Atlas,
-	pub ui_font: Font,
+	pub ui_font: Option<Font>,
 	pub options: Options,
 	bitmaps: HashMap<String, Bitmap>,
 	sprites: HashMap<String, sprite::Sprite>,
@@ -123,7 +125,7 @@ impl GameState
 	pub fn new() -> Result<Self>
 	{
 		let core = Core::init()?;
-		core.set_app_name("CrystalCommune");
+		core.set_app_name("HackInit");
 		core.set_org_name("SiegeLord");
 
 		let options = load_options(&core)?;
@@ -140,9 +142,6 @@ impl GameState
 		//sfx.set_music_file("data/lemonade-sinus.xm");
 		//sfx.play_music()?;
 
-		let ui_font =
-			Font::new_builtin(&font).map_err(|_| "Could't create builtin font.".to_string())?;
-
 		let controls = controls::ControlsHandler::new(options.controls.clone());
 		Ok(Self {
 			options: options,
@@ -157,7 +156,7 @@ impl GameState
 			sfx: sfx,
 			paused: false,
 			atlas: atlas::Atlas::new(512),
-			ui_font: ui_font,
+			ui_font: None,
 			draw_scale: 1.,
 			display_width: 0.,
 			display_height: 0.,
@@ -189,12 +188,27 @@ impl GameState
 		self.buffer1().get_height() as f32
 	}
 
-	pub fn resize_display(&mut self, display: &Display)
+	pub fn ui_font(&self) -> &Font
 	{
-		//let buffer_width = 800;
-		//let buffer_height = 600;
-		let buffer_width = display.get_width();
-		let buffer_height = display.get_height();
+		self.ui_font.as_ref().unwrap()
+	}
+
+	pub fn resize_display(&mut self, display: &Display) -> Result<()>
+	{
+		const FIXED_BUFFER: bool = true;
+
+		let buffer_width;
+		let buffer_height;
+		if FIXED_BUFFER
+		{
+			buffer_width = 800;
+			buffer_height = 600;
+		}
+		else
+		{
+			buffer_width = display.get_width();
+			buffer_height = display.get_height();
+		}
 
 		self.display_width = display.get_width() as f32;
 		self.display_height = display.get_height() as f32;
@@ -204,11 +218,18 @@ impl GameState
 		)
 		.floor();
 
-		//if self.buffer1.is_none()
+		if self.buffer1.is_none() || !FIXED_BUFFER
 		{
 			self.buffer1 = Some(Bitmap::new(&self.core, buffer_width, buffer_height).unwrap());
 			self.buffer2 = Some(Bitmap::new(&self.core, buffer_width, buffer_height).unwrap());
 		}
+
+		self.ui_font = Some(utils::load_ttf_font(
+			&self.ttf,
+			"data/Energon.ttf",
+			(-24. * self.options.ui_scale) as i32,
+		)?);
+		Ok(())
 	}
 
 	pub fn transform_mouse(&self, x: f32, y: f32) -> (f32, f32)

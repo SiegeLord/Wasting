@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "CrystalCommune"
+name = "HackInit"
 version = "0.1.0"
 dependencies = [
  "allegro",
