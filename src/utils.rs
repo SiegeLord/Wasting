@@ -167,6 +167,31 @@ pub fn load_ttf_font(ttf: &TtfAddon, file: &str, size: i32) -> Result<Font>
 		.map_err(|_| format!("Couldn't load {}", file))?)
 }
 
+pub fn load_shader(disp: &mut Display, path: &str) -> Result<std::sync::Weak<Shader>>
+{
+	let shader = disp.create_shader(ShaderPlatform::GLSL).unwrap();
+
+	shader
+		.upgrade()
+		.unwrap()
+		.attach_shader_source(
+			ShaderType::Vertex,
+			Some(&read_to_string(&format!("{path}_vertex.glsl"))?),
+		)
+		.unwrap();
+
+	shader
+		.upgrade()
+		.unwrap()
+		.attach_shader_source(
+			ShaderType::Pixel,
+			Some(&read_to_string(&format!("{path}_pixel.glsl"))?),
+		)
+		.unwrap();
+	shader.upgrade().unwrap().build().unwrap();
+	Ok(shader)
+}
+
 pub fn nearest_line_point(v1: Point2<f32>, v2: Point2<f32>, test_point: Point2<f32>)
 	-> Point2<f32>
 {

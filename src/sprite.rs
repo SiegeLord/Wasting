@@ -82,8 +82,8 @@ impl Sprite
 			atlas_bmp.start.y,
 			w,
 			h,
-			pos.x - self.desc.center_x as f32,
-			pos.y - self.desc.center_y as f32,
+			pos.x - self.desc.center_x as f32 - w / 2.,
+			pos.y - self.desc.center_y as f32 - h / 2.,
 			Flag::zero(),
 		);
 	}

@@ -157,7 +157,7 @@ impl GameState
 			ttf: ttf,
 			sfx: sfx,
 			paused: false,
-			atlas: atlas::Atlas::new(512),
+			atlas: atlas::Atlas::new(1024),
 			ui_font: None,
 			draw_scale: 1.,
 			display_width: 0.,
@@ -198,13 +198,14 @@ impl GameState
 	pub fn resize_display(&mut self, display: &Display) -> Result<()>
 	{
 		const FIXED_BUFFER: bool = true;
+		const INTEGER_SCALE: bool = false;
 
 		let buffer_width;
 		let buffer_height;
 		if FIXED_BUFFER
 		{
-			buffer_width = 800;
-			buffer_height = 600;
+			buffer_width = 640;
+			buffer_height = 480;
 		}
 		else
 		{
@@ -217,8 +218,11 @@ impl GameState
 		self.draw_scale = utils::min(
 			(display.get_width() as f32) / (buffer_width as f32),
 			(display.get_height() as f32) / (buffer_height as f32),
-		)
-		.floor();
+		);
+		if INTEGER_SCALE
+		{
+			self.draw_scale = self.draw_scale.floor();
+		}
 
 		if self.buffer1.is_none() || !FIXED_BUFFER
 		{

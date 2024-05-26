@@ -23,32 +23,6 @@ use allegro_sys::*;
 use rand::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use std::rc::Rc;
-use std::sync;
-
-fn make_shader(disp: &mut Display) -> Result<sync::Weak<Shader>>
-{
-	let shader = disp.create_shader(ShaderPlatform::GLSL).unwrap();
-
-	shader
-		.upgrade()
-		.unwrap()
-		.attach_shader_source(
-			ShaderType::Vertex,
-			Some(&utils::read_to_string("data/vertex.glsl")?),
-		)
-		.unwrap();
-
-	shader
-		.upgrade()
-		.unwrap()
-		.attach_shader_source(
-			ShaderType::Pixel,
-			Some(&utils::read_to_string("data/pixel.glsl")?),
-		)
-		.unwrap();
-	shader.upgrade().unwrap().build().unwrap();
-	Ok(shader)
-}
 
 enum Screen
 {
@@ -79,7 +53,8 @@ fn real_main() -> Result<()>
 	let mut display = Display::new(&state.core, state.options.width, state.options.height)
 		.map_err(|_| "Couldn't create display".to_string())?;
 
-	let shader = make_shader(&mut display)?;
+	let shader = utils::load_shader(&mut display, "data/basic")?;
+	let scale_shader = utils::load_shader(&mut display, "data/scale")?;
 	state.resize_display(&display)?;
 
 	let timer = Timer::new(&state.core, utils::DT as f64)
@@ -165,12 +140,29 @@ fn real_main() -> Result<()>
 
 			state.core.set_target_bitmap(Some(display.get_backbuffer()));
 
-			state.core.clear_to_color(Color::from_rgb_f(0., 0., 0.));
-
 			let bw = state.buffer_width() as f32;
 			let bh = state.buffer_height() as f32;
 			let dw = display.get_width() as f32;
 			let dh = display.get_height() as f32;
+
+			state
+				.core
+				.use_shader(Some(&*scale_shader.upgrade().unwrap()))
+				.unwrap();
+			state
+				.core
+				.set_shader_uniform("bitmap_width", &[bw][..])
+				.ok();
+			state
+				.core
+				.set_shader_uniform("bitmap_height", &[bh][..])
+				.ok();
+			state
+				.core
+				.set_shader_uniform("scale", &[state.draw_scale][..])
+				.ok();
+
+			state.core.clear_to_color(Color::from_rgb_f(0., 0., 0.));
 
 			state.core.draw_scaled_bitmap(
 				state.buffer2(),
@@ -178,8 +170,8 @@ fn real_main() -> Result<()>
 				0.,
 				bw,
 				bh,
-				dw / 2. - bw / 2. * state.draw_scale,
-				dh / 2. - bh / 2. * state.draw_scale,
+				(dw / 2. - bw / 2. * state.draw_scale).floor(),
+				(dh / 2. - bh / 2. * state.draw_scale).floor(),
 				bw * state.draw_scale,
 				bh * state.draw_scale,
 				Flag::zero(),
