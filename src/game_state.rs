@@ -26,6 +26,7 @@ pub struct Options
 	pub camera_speed: i32,
 	pub grab_mouse: bool,
 	pub ui_scale: f32,
+	pub frac_scale: bool,
 
 	pub controls: controls::Controls,
 }
@@ -45,6 +46,7 @@ impl Default for Options
 			camera_speed: 4,
 			grab_mouse: false,
 			ui_scale: 1.,
+			frac_scale: true,
 			controls: controls::Controls::new(),
 		}
 	}
@@ -219,7 +221,7 @@ impl GameState
 			(display.get_width() as f32) / (buffer_width as f32),
 			(display.get_height() as f32) / (buffer_height as f32),
 		);
-		if INTEGER_SCALE
+		if !self.options.frac_scale
 		{
 			self.draw_scale = self.draw_scale.floor();
 		}

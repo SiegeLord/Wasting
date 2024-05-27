@@ -26,6 +26,7 @@ pub enum Action
 	Back,
 	Forward(fn(&mut game_state::GameState) -> SubScreen),
 	ToggleFullscreen,
+	ToggleFracScale,
 	ChangeInput(controls::Action, usize),
 	MouseSensitivity(f32),
 	UiScale(f32),
@@ -1042,6 +1043,16 @@ impl OptionsMenu
 				)),
 			],
 			vec![
+				Widget::Label(Label::new(w, h, "Fractional Scale")),
+				Widget::Toggle(Toggle::new(
+					w,
+					h,
+					state.options.frac_scale as usize,
+					vec!["No".into(), "Yes".into()],
+					|_| Action::ToggleFracScale,
+				)),
+			],
+			vec![
 				Widget::Label(Label::new(w, h, "Music")),
 				Widget::Slider(Slider::new(
 					w,
@@ -1115,6 +1126,11 @@ impl OptionsMenu
 				Action::ToggleFullscreen =>
 				{
 					state.options.fullscreen = !state.options.fullscreen;
+					options_changed = true;
+				}
+				Action::ToggleFracScale =>
+				{
+					state.options.frac_scale = !state.options.frac_scale;
 					options_changed = true;
 				}
 				Action::MusicVolume(v) =>
