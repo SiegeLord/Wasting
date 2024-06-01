@@ -140,12 +140,14 @@ pub fn spawn_ship(pos: Point2<f32>, dir: f32, world: &mut hecs::World) -> Result
 		},
 		comps::Player,
 		comps::AffectedByGravity,
+		comps::Collidable,
 	));
 	Ok(entity)
 }
 
 struct MapCell
 {
+	width: f32,
 	ground: Vec<(f32, f32)>,
 }
 
@@ -155,36 +157,11 @@ impl MapCell
 	{
 		let num_points = 96;
 		let mut ground = Vec::with_capacity(num_points);
-		//let mut dx = 0.;
-		//let mut dy = state.buffer_height() - 100.;
-		//let mut y = dy;
-		//let mut di = 0;
 		//let mut rng = StdRng::seed_from_u64(0);
 		let mut rng = thread_rng();
-		//let mut len = rng.gen_range(3..10);
-		//let w = state.buffer_width() / (num_points - 1) as f32;
+		let width = state.buffer_width();
 
-		//for i in 0..num_points
-		//{
-		//	let rx = i as f32 * w;
-		//	if i == di + len
-		//	{
-		//		di = i;
-		//		dx = rx;
-		//		dy = y;
-		//		len = rng.gen_range(3..10);
-		//        dbg!(len);
-		//	}
-
-		//	let x = w + rx - dx;
-		//	let a = -0.02;
-		//	let b = 1.35;
-		//	let c = dy;
-		//	y = a * x * x + b * x + c;
-		//	ground.push((rx, y));
-		//}
-
-		let w = state.buffer_width() / (num_points - 1) as f32;
+		let w = width / (num_points - 1) as f32;
 
 		let num_segments = 12;
 
@@ -236,7 +213,21 @@ impl MapCell
 			y1 = y2;
 		}
 
-		Self { ground: ground }
+		Self {
+			ground: ground,
+			width: width,
+		}
+	}
+
+	fn get_height(&self, x: f32) -> f32
+	{
+		let num_points = self.ground.len();
+		let w = self.width / (num_points - 1) as f32;
+		let idx = (x / w) as usize;
+		let y1 = self.ground[idx].1;
+		let y2 = self.ground[idx + 1].1;
+		let f = (x - w * idx as f32) / w;
+		f * y1 + (1. - f) * y2
 	}
 
 	fn draw(&self, state: &game_state::GameState)
@@ -296,6 +287,7 @@ impl Map
 			let thrust = state.controls.get_action_state(controls::Action::Thrust);
 			velocity.pos += v * utils::DT * 64. * thrust;
 		}
+
 		// Gravity.
 		for (_, (velocity, _)) in self
 			.world
@@ -311,6 +303,23 @@ impl Map
 		{
 			position.pos += velocity.pos * utils::DT;
 			position.dir += velocity.dir * utils::DT;
+		}
+
+		// Collision.
+		for (_, (position, velocity, _)) in self.world.query_mut::<(
+			&mut comps::Position,
+			&mut comps::Velocity,
+			&comps::Collidable,
+		)>()
+		{
+			// TODO: Better collision.
+			let ground_y = self.cell.get_height(position.pos.x);
+			if position.pos.y > ground_y
+			{
+				position.pos.y = ground_y;
+				velocity.pos.x = 0.;
+				velocity.pos.y = 0.;
+			}
 		}
 
 		// Remove dead entities

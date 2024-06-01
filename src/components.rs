@@ -23,3 +23,6 @@ pub struct Player;
 
 #[derive(Debug, Copy, Clone)]
 pub struct AffectedByGravity;
+
+#[derive(Debug, Copy, Clone)]
+pub struct Collidable;
