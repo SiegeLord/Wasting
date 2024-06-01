@@ -138,9 +138,31 @@ pub fn spawn_ship(pos: Point2<f32>, dir: f32, world: &mut hecs::World) -> Result
 			pos: Vector2::new(0., 0.),
 			dir: 0.,
 		},
-		comps::Player,
+		comps::Ship,
 		comps::AffectedByGravity,
-		comps::Collidable,
+		comps::Solid {
+			kind: comps::CollideKind::Ship,
+			size: 16.,
+		},
+		comps::Connection { child: None },
+	));
+	Ok(entity)
+}
+
+pub fn spawn_car(pos: Point2<f32>, world: &mut hecs::World) -> Result<hecs::Entity>
+{
+	let entity = world.spawn((
+		comps::Position { pos: pos, dir: 0. },
+		comps::Velocity {
+			pos: Vector2::new(0., 0.),
+			dir: 0.,
+		},
+		comps::Car { attached: false },
+		comps::Solid {
+			kind: comps::CollideKind::Car,
+			size: 8.,
+		},
+		comps::Connection { child: None },
 	));
 	Ok(entity)
 }
@@ -257,6 +279,14 @@ impl Map
 		let mut world = hecs::World::new();
 		let player = spawn_ship(Point2::new(100., 100.), -utils::PI / 2., &mut world)?;
 
+		let mut e = player;
+		for i in 0..5
+		{
+			let old_e = e;
+			e = spawn_car(Point2::new(200. + i as f32 * 32., 100.), &mut world)?;
+			//world.get::<&mut comps::Connection>(old_e)?.child = Some(e);
+		}
+
 		Ok(Self {
 			world: world,
 			cell: MapCell::new(state),
@@ -285,7 +315,7 @@ impl Map
 			let v = rot * Vector2::new(1., 0.);
 
 			let thrust = state.controls.get_action_state(controls::Action::Thrust);
-			velocity.pos += v * utils::DT * 64. * thrust;
+			velocity.pos += v * utils::DT * 96. * thrust;
 		}
 
 		// Gravity.
@@ -305,12 +335,84 @@ impl Map
 			position.dir += velocity.dir * utils::DT;
 		}
 
-		// Collision.
-		for (_, (position, velocity, _)) in self.world.query_mut::<(
-			&mut comps::Position,
-			&mut comps::Velocity,
-			&comps::Collidable,
-		)>()
+		// Train logic.
+		let mut children_to_move = vec![];
+		for (_, (position, connection)) in self
+			.world
+			.query::<(&comps::Position, &comps::Connection)>()
+			.iter()
+		{
+			if let Some(child) = connection.child
+			{
+				children_to_move.push((position.pos, child));
+			}
+		}
+
+		for (pos, child) in children_to_move
+		{
+			let child_position = self
+				.world
+				.query_one_mut::<&mut comps::Position>(child)
+				.unwrap();
+			let dv = child_position.pos - pos;
+			let new_dv = 24. * dv / dv.norm();
+			child_position.pos = pos + new_dv;
+		}
+
+		// Object-object collision
+		let mut collide_pairs = vec![];
+		for (e1, (position1, solid1)) in self
+			.world
+			.query::<(&comps::Position, &comps::Solid)>()
+			.iter()
+		{
+			for (e2, (position2, solid2)) in self
+				.world
+				.query::<(&comps::Position, &comps::Solid)>()
+				.iter()
+			{
+				if e1 == e2 || !solid1.kind.collides_with(&solid2.kind)
+				{
+					continue;
+				}
+				let d = (position1.pos - position2.pos).norm();
+				if d < (solid1.size + solid2.size)
+				{
+					collide_pairs.push((e1, *position1, *solid1, e2, *position2, *solid2));
+				}
+			}
+		}
+		for (e1, _position1, _solid1, e2, _position2, _solid2) in collide_pairs
+		{
+			if self.world.get::<&comps::Ship>(e1).is_ok()
+				&& Ok(false) == self.world.get::<&comps::Car>(e2).map(|c| c.attached)
+			{
+				let ship = e1;
+				let car = e2;
+
+				let mut tail = ship;
+				loop
+				{
+					let mut connection = self.world.get::<&mut comps::Connection>(tail)?;
+					if let Some(new_tail) = connection.child
+					{
+						tail = new_tail;
+					}
+					else
+					{
+						connection.child = Some(car);
+						break;
+					}
+				}
+				let mut car = self.world.get::<&mut comps::Car>(car)?;
+				car.attached = true;
+			}
+		}
+
+		// Ground collision.
+		for (_, (position, velocity, _)) in
+			self.world
+				.query_mut::<(&mut comps::Position, &mut comps::Velocity, &comps::Solid)>()
 		{
 			// TODO: Better collision.
 			let ground_y = self.cell.get_height(position.pos.x);
@@ -345,7 +447,20 @@ impl Map
 	{
 		state.core.clear_to_color(Color::from_rgb_f(0., 0.0, 0.5));
 
-		for (_, position) in self.world.query::<&comps::Position>().iter()
+		for (_, (position, _)) in self.world.query::<(&comps::Position, &comps::Car)>().iter()
+		{
+			state.prim.draw_filled_circle(
+				position.pos.x,
+				position.pos.y,
+				8.,
+				Color::from_rgb_f(1.0, 1.0, 1.0),
+			);
+		}
+
+		for (_, (position, _)) in self
+			.world
+			.query::<(&comps::Position, &comps::Ship)>()
+			.iter()
 		{
 			state.prim.draw_filled_circle(
 				position.pos.x,

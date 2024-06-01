@@ -19,10 +19,47 @@ pub struct Velocity
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Player;
+pub struct Connection
+{
+	pub child: Option<hecs::Entity>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Ship;
+
+#[derive(Debug, Copy, Clone)]
+pub struct Car
+{
+	pub attached: bool,
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct AffectedByGravity;
 
-#[derive(Debug, Copy, Clone)]
-pub struct Collidable;
+#[derive(Copy, Clone, Debug)]
+pub enum CollideKind
+{
+	Ship,
+	Car,
+}
+
+impl CollideKind
+{
+	pub fn collides_with(&self, other: &CollideKind) -> bool
+	{
+		match (self, other)
+		{
+			(CollideKind::Ship, CollideKind::Ship) => true,
+			(CollideKind::Ship, CollideKind::Car) => true,
+			(CollideKind::Car, CollideKind::Ship) => true,
+			(CollideKind::Car, CollideKind::Car) => false,
+		}
+	}
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Solid
+{
+	pub size: f32,
+	pub kind: CollideKind,
+}
