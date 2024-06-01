@@ -12,7 +12,7 @@ use rand::prelude::*;
 
 use std::collections::HashMap;
 
-const MAX_VEL: f32 = 20.;
+const MAX_VEL: f32 = 25.;
 
 pub struct Game
 {
@@ -193,10 +193,20 @@ pub fn spawn_car_corpse(
 	Ok(entity)
 }
 
+enum Gravity
+{
+	None,
+	Down(f32),
+	Center(f32),
+}
+
 struct MapCell
 {
-	width: f32,
 	ground: Vec<(f32, f32)>,
+	gravity: Gravity,
+	circle: bool,
+	population: i32,
+	center: Point2<f32>,
 }
 
 impl MapCell
@@ -205,81 +215,167 @@ impl MapCell
 	{
 		let num_points = 96;
 		let mut ground = Vec::with_capacity(num_points);
-		let width = state.buffer_width();
+		let gravity;
+		let circle;
+		let population;
 
-		let w = width / (num_points - 1) as f32;
+		let center = Point2::new(
+			state.buffer_width() / 2. + rng.gen_range(-16.0..16.0),
+			state.buffer_height() / 2. + rng.gen_range(-16.0..16.0),
+		);
 
-		let num_segments = 12;
-
-		let mut y1 = 0.;
-
-		let landing_segment = rng.gen_range(1..num_segments - 1);
-		for s in 0..num_segments
+		if false
 		{
-			let segment = if s + 1 == num_segments
+			let width = state.buffer_width();
+
+			let w = width / (num_points - 1) as f32;
+
+			let mut y1 = 0.;
+			let mut segment_lengths = vec![];
+			let mut cur_points = 0;
+			loop
 			{
-				num_points - ground.len()
+				let segment = rng.gen_range(6..12);
+				segment_lengths.push(segment);
+				if segment + cur_points > num_points
+				{
+					break;
+				}
+				cur_points += segment;
 			}
-			else
-			{
-				rng.gen_range(6..12)
-			};
-			let a = 600.;
-			let b = -a;
-			let c = 50.;
-			let x = s as f32 / (num_segments - 1) as f32;
+			let num_segments = segment_lengths.len();
+			segment_lengths[num_segments - 1] = num_points - cur_points;
+			let landing_segment = rng.gen_range(1..num_segments - 1);
 
-			let amp = a * x * x + b * x + c;
+			for (s, &segment) in segment_lengths.iter().enumerate()
+			{
+				let a = 600.;
+				let b = -a;
+				let c = 50.;
+				let x = s as f32 / (num_segments - 1) as f32;
 
-			let y2 = if s == landing_segment
-			{
-				y1
-			}
-			else
-			{
-				rng.gen_range(-1.0..=1.0) * amp
-			};
-			let a = -rng.gen_range(100.0..300.0);
+				let amp = a * x * x + b * x + c;
 
-			for i in 0..segment
-			{
-				let x = i as f32 / segment as f32;
-				let c = y1;
-				let b = y2 - a - c;
-				let y = if s == landing_segment
+				let y2 = if s == landing_segment
 				{
 					y1
 				}
 				else
 				{
-					a * x * x + b * x + c
+					rng.gen_range(-1.0..=1.0) * amp
 				};
-				ground.push((ground.len() as f32 * w, 300. + y));
+				let a = -rng.gen_range(100.0..300.0);
+
+				for i in 0..segment
+				{
+					let x = i as f32 / segment as f32;
+					let c = y1;
+					let b = y2 - a - c;
+					let y = if s == landing_segment
+					{
+						y1
+					}
+					else
+					{
+						a * x * x + b * x + c
+					};
+					ground.push((ground.len() as f32 * w, 300. + y));
+				}
+				y1 = y2;
 			}
-			y1 = y2;
+			gravity = Gravity::Down(24.);
+			population = 1;
+			circle = false;
+		}
+		else
+		{
+			let mut r1 = 0.;
+
+			let mut segment_lengths = vec![];
+			let mut cur_points = 0;
+			loop
+			{
+				let segment = rng.gen_range(10..20);
+				segment_lengths.push(segment);
+				if segment + cur_points > num_points
+				{
+					break;
+				}
+				cur_points += segment;
+			}
+			let num_segments = segment_lengths.len();
+			segment_lengths[num_segments - 1] = num_points - cur_points;
+			let landing_segment = rng.gen_range(0..num_segments - 1);
+			for (s, &segment) in segment_lengths.iter().enumerate()
+			{
+				let a = 60.;
+				let b = -a;
+				let c = 0.;
+				let x = s as f32 / (num_segments - 1) as f32;
+
+				let amp = a * x * x + b * x + c;
+				let r2 = if s == landing_segment
+				{
+					r1
+				}
+				else
+				{
+					rng.gen_range(-1.0..=1.0) * amp
+				};
+				let a = rng.gen_range(100.0..150.0);
+
+				for i in 0..segment
+				{
+					let x = i as f32 / segment as f32;
+					let c = r1;
+					let b = r2 - a - c;
+					let r = if s == landing_segment
+					{
+						100. + r1
+					}
+					else
+					{
+						100. + a * x * x + b * x + c
+					};
+					let theta = 2. * utils::PI * ground.len() as f32 / num_points as f32;
+					ground.push((r * theta.cos() + center.x, r * theta.sin() + center.y));
+				}
+				r1 = r2;
+			}
+			gravity = Gravity::Center(24.);
+			population = 0;
+			circle = true;
 		}
 
 		Self {
+			population: population,
+			center: center,
+			circle: circle,
 			ground: ground,
-			width: width,
+			gravity: gravity,
 		}
 	}
 
-	fn collide(&self, pos: Point2<f32>, size: f32) -> Option<(f32, Point2<f32>)>
+	fn collide(&self, pos: Point2<f32>, size: f32) -> Option<(f32, Vector2<f32>, Point2<f32>)>
 	{
 		let num_points = self.ground.len();
-		let w = self.width / (num_points - 1) as f32;
-
 		for i in 1..num_points
 		{
-			let x1 = (i - 1) as f32 * w;
+			let x1 = self.ground[i - 1].0;
 			let y1 = self.ground[i - 1].1;
-			let x2 = i as f32 * w;
+			let x2 = self.ground[i].0;
 			let y2 = self.ground[i].1;
 			let nearest = utils::nearest_line_point(Point2::new(x1, y1), Point2::new(x2, y2), pos);
 			if (nearest - pos).norm() < size
 			{
-				return Some((((y2 - y1) / (x2 - x1)).abs(), nearest));
+				let normal = -Vector2::new(y1 - y2, x2 - x1).normalize();
+				let gravity_normal = match self.gravity
+				{
+					Gravity::None => Vector2::new(0., 0.),
+					Gravity::Down(_) => Vector2::new(0., -1.),
+					Gravity::Center(_) => (pos - self.center).normalize(),
+				};
+				return Some((normal.dot(&gravity_normal), normal, nearest));
 			}
 		}
 		None
@@ -287,14 +383,27 @@ impl MapCell
 
 	fn draw(&self, state: &game_state::GameState)
 	{
-		state.prim.draw_polyline(
-			&self.ground,
-			LineJoinType::Bevel,
-			LineCapType::Round,
-			Color::from_rgb_f(1., 1., 1.),
-			2.,
-			0.5,
-		);
+		if self.circle
+		{
+			state.prim.draw_polygon(
+				&self.ground,
+				LineJoinType::Bevel,
+				Color::from_rgb_f(1., 1., 1.),
+				2.,
+				0.5,
+			);
+		}
+		else
+		{
+			state.prim.draw_polyline(
+				&self.ground,
+				LineJoinType::Bevel,
+				LineCapType::Round,
+				Color::from_rgb_f(1., 1., 1.),
+				2.,
+				0.5,
+			);
+		}
 	}
 }
 
@@ -323,7 +432,7 @@ impl Map
 			spawn_car(Point2::new(200. + i as f32 * 32., 100.), &mut world)?;
 		}
 
-		let mut rng = StdRng::seed_from_u64(0);
+		let mut rng = StdRng::seed_from_u64(thread_rng().gen());
 
 		Ok(Self {
 			world: world,
@@ -385,11 +494,29 @@ impl Map
 		}
 
 		// Gravity.
-		for (_, (velocity, _)) in self
-			.world
-			.query_mut::<(&mut comps::Velocity, &comps::AffectedByGravity)>()
+		for (_, (position, velocity, _)) in self.world.query_mut::<(
+			&comps::Position,
+			&mut comps::Velocity,
+			&comps::AffectedByGravity,
+		)>()
 		{
-			velocity.pos.y += 24. * utils::DT;
+			match self.cell.gravity
+			{
+				Gravity::None => (),
+				Gravity::Down(v) =>
+				{
+					velocity.pos.y += v * utils::DT;
+				}
+				Gravity::Center(v) =>
+				{
+					let mut dv = self.cell.center - position.pos;
+					if dv == Vector2::new(0., 0.)
+					{
+						dv = Vector2::new(1., 0.);
+					}
+					velocity.pos += v * dv / dv.norm() * utils::DT;
+				}
+			}
 		}
 
 		// Physics.
@@ -432,7 +559,12 @@ impl Map
 				.world
 				.query_one_mut::<&mut comps::Position>(child)
 				.unwrap();
-			let dv = child_position.pos - pos;
+			let mut dv = child_position.pos - pos;
+			if dv == Vector2::new(0., 0.)
+			{
+				dv = Vector2::new(1., 0.);
+			}
+
 			let new_dv = 24. * dv / dv.norm();
 			child_position.pos = pos + new_dv;
 		}
@@ -495,22 +627,26 @@ impl Map
 			.query::<(&mut comps::Position, &mut comps::Velocity, &comps::Solid)>()
 			.iter()
 		{
-			if let Some((slope, ground_point)) = self.cell.collide(position.pos, solid.size)
+			if let Some((dot, normal, ground_point)) = self.cell.collide(position.pos, solid.size)
 			{
-				let dv = position.pos - ground_point;
+				let mut dv = position.pos - ground_point;
+				if dv == Vector2::new(0., 0.)
+				{
+					dv = Vector2::new(1., 0.);
+				}
 				position.pos = ground_point + dv * solid.size / dv.norm();
-				position.dir = -utils::PI / 2.;
+				position.dir = normal.y.atan2(normal.x);
 
 				let is_ship = self.world.get::<&comps::Ship>(e).is_ok();
 				if is_ship
 				{
-					let m = (MAX_VEL - (velocity.pos.y + velocity.pos.x.abs())) / 5.;
+					let m = (MAX_VEL - velocity.pos.norm()) / 5.;
 					multiplier = utils::max(1., 0.5 * (m / 0.5).round());
 				}
 
 				let explode = if self.world.get::<&comps::Car>(e).is_ok()
-					|| (is_ship && (velocity.pos.y > MAX_VEL || velocity.pos.x.abs() > MAX_VEL))
-					|| slope > 1.
+					|| (is_ship && velocity.pos.norm() > MAX_VEL)
+					|| dot < 0.9
 				{
 					true
 				}
@@ -521,7 +657,10 @@ impl Map
 				velocity.pos.x = 0.;
 				velocity.pos.y = 0.;
 
-				delete_tail.push((e, explode));
+				if explode || !(is_ship && self.cell.population > 0)
+				{
+					delete_tail.push((e, explode));
+				}
 			}
 		}
 
@@ -676,7 +815,7 @@ impl Map
 		}
 		if let Ok(velocity) = self.world.query_one_mut::<&comps::Velocity>(self.player)
 		{
-			let (color, alert) = if velocity.pos.x.abs() > MAX_VEL
+			let (color, alert) = if velocity.pos.norm() > MAX_VEL
 			{
 				(Color::from_rgb_f(0.9, 0.1, 0.1), "!")
 			}
@@ -687,26 +826,10 @@ impl Map
 			state.core.draw_text(
 				state.ui_font(),
 				color,
-				(state.buffer_width() / 2. - 200.).round(),
+				(state.buffer_width() / 2. - 50.).round(),
 				(state.buffer_height() - 32.).round(),
 				FontAlign::Left,
-				&format!("vx: {:.1} m/s{}", velocity.pos.x, alert),
-			);
-			let (color, alert) = if velocity.pos.y > MAX_VEL
-			{
-				(Color::from_rgb_f(0.9, 0.1, 0.1), "!")
-			}
-			else
-			{
-				(Color::from_rgb_f(0.9, 0.9, 0.9), "")
-			};
-			state.core.draw_text(
-				state.ui_font(),
-				color,
-				(state.buffer_width() / 2. + 50.).round(),
-				(state.buffer_height() - 32.).round(),
-				FontAlign::Left,
-				&format!("vy: {:.1} m/s{}", velocity.pos.y, alert),
+				&format!("SPEED: {:.1} m/s{}", velocity.pos.norm(), alert),
 			);
 		}
 		state.core.draw_text(
