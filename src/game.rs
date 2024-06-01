@@ -2,6 +2,7 @@ use crate::error::Result;
 use crate::{astar, components as comps, controls, game_state, sprite, ui, utils};
 use allegro::*;
 use allegro_font::*;
+use allegro_primitives::*;
 use na::{
 	Isometry3, Matrix4, Perspective3, Point2, Point3, Quaternion, RealField, Rotation2, Rotation3,
 	Unit, Vector2, Vector3, Vector4,
@@ -135,19 +136,131 @@ pub fn spawn_obj(pos: Point2<f32>, world: &mut hecs::World) -> Result<hecs::Enti
 	Ok(entity)
 }
 
+struct MapCell
+{
+	ground: Vec<(f32, f32)>,
+}
+
+impl MapCell
+{
+	fn new(state: &mut game_state::GameState) -> Self
+	{
+		let num_points = 96;
+		let mut ground = Vec::with_capacity(num_points);
+		//let mut dx = 0.;
+		//let mut dy = state.buffer_height() - 100.;
+		//let mut y = dy;
+		//let mut di = 0;
+		//let mut rng = StdRng::seed_from_u64(0);
+		let mut rng = thread_rng();
+		//let mut len = rng.gen_range(3..10);
+		//let w = state.buffer_width() / (num_points - 1) as f32;
+
+		//for i in 0..num_points
+		//{
+		//	let rx = i as f32 * w;
+		//	if i == di + len
+		//	{
+		//		di = i;
+		//		dx = rx;
+		//		dy = y;
+		//		len = rng.gen_range(3..10);
+		//        dbg!(len);
+		//	}
+
+		//	let x = w + rx - dx;
+		//	let a = -0.02;
+		//	let b = 1.35;
+		//	let c = dy;
+		//	y = a * x * x + b * x + c;
+		//	ground.push((rx, y));
+		//}
+
+		let w = state.buffer_width() / (num_points - 1) as f32;
+
+		let num_segments = 12;
+
+		let mut y1 = 0.;
+
+		let landing_segment = rng.gen_range(1..num_segments - 1);
+		for s in 0..num_segments
+		{
+			let segment = if s + 1 == num_segments
+			{
+				num_points - ground.len()
+			}
+			else
+			{
+				rng.gen_range(6..12)
+			};
+			let a = 600.;
+			let b = -a;
+			let c = 50.;
+			let x = s as f32 / (num_segments - 1) as f32;
+
+			let amp = a * x * x + b * x + c;
+
+			let y2 = if s == landing_segment
+			{
+				y1
+			}
+			else
+			{
+				rng.gen_range(-1.0..=1.0) * amp
+			};
+			let a = -rng.gen_range(100.0..300.0);
+
+			for i in 0..segment
+			{
+				let x = i as f32 / segment as f32;
+				let c = y1;
+				let b = y2 - a - c;
+				let y = if s == landing_segment
+				{
+					y1
+				}
+				else
+				{
+					a * x * x + b * x + c
+				};
+				ground.push((ground.len() as f32 * w, 300. + y));
+			}
+			y1 = y2;
+		}
+
+		Self { ground: ground }
+	}
+
+	fn draw(&self, state: &game_state::GameState)
+	{
+		state.prim.draw_polyline(
+			&self.ground,
+			LineJoinType::Bevel,
+			LineCapType::Round,
+			Color::from_rgb_f(1., 1., 1.),
+			2.,
+			0.5,
+		);
+	}
+}
+
 struct Map
 {
 	world: hecs::World,
+	cell: MapCell,
 }
 
 impl Map
 {
-	fn new(_state: &mut game_state::GameState) -> Result<Self>
+	fn new(state: &mut game_state::GameState) -> Result<Self>
 	{
 		let mut world = hecs::World::new();
 		spawn_obj(Point2::new(100., 100.), &mut world)?;
 
-		Ok(Self { world: world })
+		Ok(Self {
+			world: world,
+			cell: MapCell::new(state),
+		})
 	}
 
 	fn logic(&mut self, state: &mut game_state::GameState)
@@ -197,6 +310,8 @@ impl Map
 				Color::from_rgb_f(1.0, 0.0, 1.0),
 			);
 		}
+
+		self.cell.draw(state);
 
 		Ok(())
 	}

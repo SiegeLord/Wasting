@@ -655,7 +655,7 @@ impl ControlsHandler
 	pub fn get_action_state(&mut self, action: Action) -> f32
 	{
 		let mut ret = 0.;
-		for inputs in &self.controls.action_to_inputs.get(&action)
+		if let Some(inputs) = self.controls.action_to_inputs.get(&action)
 		{
 			for input in &inputs[..]
 			{
@@ -670,7 +670,7 @@ impl ControlsHandler
 
 	pub fn clear_action_state(&mut self, action: Action)
 	{
-		for inputs in &self.controls.action_to_inputs.get(&action)
+		if let Some(inputs) = self.controls.action_to_inputs.get(&action)
 		{
 			for input in &inputs[..]
 			{

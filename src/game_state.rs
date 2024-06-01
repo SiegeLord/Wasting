@@ -142,7 +142,7 @@ impl GameState
 		core.install_mouse()
 			.map_err(|_| "Couldn't install mouse".to_string())?;
 
-		let mut sfx = sfx::Sfx::new(options.sfx_volume, options.music_volume, &core)?;
+		let sfx = sfx::Sfx::new(options.sfx_volume, options.music_volume, &core)?;
 		//sfx.set_music_file("data/lemonade-sinus.xm");
 		//sfx.play_music()?;
 
