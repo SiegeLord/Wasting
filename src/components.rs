@@ -63,3 +63,29 @@ pub struct Solid
 	pub size: f32,
 	pub kind: CollideKind,
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct CarCorpse
+{
+	pub multiplier: f32,
+	pub time_to_die: f64,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TimeToDie
+{
+	pub time_to_die: f64,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum DrawKind
+{
+	Ship,
+	Car,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Drawable
+{
+	pub kind: DrawKind,
+}

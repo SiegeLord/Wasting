@@ -12,6 +12,8 @@ use rand::prelude::*;
 
 use std::collections::HashMap;
 
+const MAX_VEL: f32 = 20.;
+
 pub struct Game
 {
 	map: Map,
@@ -144,6 +146,9 @@ pub fn spawn_ship(pos: Point2<f32>, dir: f32, world: &mut hecs::World) -> Result
 			kind: comps::CollideKind::Ship,
 			size: 16.,
 		},
+		comps::Drawable {
+			kind: comps::DrawKind::Ship,
+		},
 		comps::Connection { child: None },
 	));
 	Ok(entity)
@@ -162,7 +167,28 @@ pub fn spawn_car(pos: Point2<f32>, world: &mut hecs::World) -> Result<hecs::Enti
 			kind: comps::CollideKind::Car,
 			size: 8.,
 		},
+		comps::Drawable {
+			kind: comps::DrawKind::Car,
+		},
 		comps::Connection { child: None },
+	));
+	Ok(entity)
+}
+
+pub fn spawn_car_corpse(
+	pos: Point2<f32>, vel: Vector2<f32>, time_to_die: f64, multiplier: f32, world: &mut hecs::World,
+) -> Result<hecs::Entity>
+{
+	let entity = world.spawn((
+		comps::Position { pos: pos, dir: 0. },
+		comps::Velocity { pos: vel, dir: 0. },
+		comps::Drawable {
+			kind: comps::DrawKind::Car,
+		},
+		comps::CarCorpse {
+			multiplier: multiplier,
+			time_to_die: time_to_die,
+		},
 	));
 	Ok(entity)
 }
@@ -175,12 +201,10 @@ struct MapCell
 
 impl MapCell
 {
-	fn new(state: &mut game_state::GameState) -> Self
+	fn new(rng: &mut impl Rng, state: &mut game_state::GameState) -> Self
 	{
 		let num_points = 96;
 		let mut ground = Vec::with_capacity(num_points);
-		//let mut rng = StdRng::seed_from_u64(0);
-		let mut rng = thread_rng();
 		let width = state.buffer_width();
 
 		let w = width / (num_points - 1) as f32;
@@ -241,15 +265,24 @@ impl MapCell
 		}
 	}
 
-	fn get_height(&self, x: f32) -> f32
+	fn collide(&self, pos: Point2<f32>, size: f32) -> Option<(f32, Point2<f32>)>
 	{
 		let num_points = self.ground.len();
 		let w = self.width / (num_points - 1) as f32;
-		let idx = (x / w) as usize;
-		let y1 = self.ground[idx].1;
-		let y2 = self.ground[idx + 1].1;
-		let f = (x - w * idx as f32) / w;
-		f * y1 + (1. - f) * y2
+
+		for i in 1..num_points
+		{
+			let x1 = (i - 1) as f32 * w;
+			let y1 = self.ground[i - 1].1;
+			let x2 = i as f32 * w;
+			let y2 = self.ground[i].1;
+			let nearest = utils::nearest_line_point(Point2::new(x1, y1), Point2::new(x2, y2), pos);
+			if (nearest - pos).norm() < size
+			{
+				return Some((((y2 - y1) / (x2 - x1)).abs(), nearest));
+			}
+		}
+		None
 	}
 
 	fn draw(&self, state: &game_state::GameState)
@@ -270,6 +303,12 @@ struct Map
 	world: hecs::World,
 	cell: MapCell,
 	player: hecs::Entity,
+	rng: StdRng,
+	score: i32,
+	target_score: i32,
+	last_score_change: i32,
+	score_message: String,
+	last_score_time: f64,
 }
 
 impl Map
@@ -279,18 +318,23 @@ impl Map
 		let mut world = hecs::World::new();
 		let player = spawn_ship(Point2::new(100., 100.), -utils::PI / 2., &mut world)?;
 
-		let mut e = player;
 		for i in 0..5
 		{
-			let old_e = e;
-			e = spawn_car(Point2::new(200. + i as f32 * 32., 100.), &mut world)?;
-			//world.get::<&mut comps::Connection>(old_e)?.child = Some(e);
+			spawn_car(Point2::new(200. + i as f32 * 32., 100.), &mut world)?;
 		}
+
+		let mut rng = StdRng::seed_from_u64(0);
 
 		Ok(Self {
 			world: world,
-			cell: MapCell::new(state),
+			cell: MapCell::new(&mut rng, state),
 			player: player,
+			rng: rng,
+			score: 0,
+			target_score: 0,
+			last_score_change: 0,
+			score_message: "".to_string(),
+			last_score_time: 0.,
 		})
 	}
 
@@ -298,6 +342,28 @@ impl Map
 		-> Result<Option<game_state::NextScreen>>
 	{
 		let mut to_die = vec![];
+
+		// Player respawn.
+		if !self.world.contains(self.player)
+		{
+			self.player = spawn_ship(
+				Point2::new(state.buffer_width() / 2., 64.),
+				-utils::PI / 2.,
+				&mut self.world,
+			)?;
+			self.score_message = format!("-{}", 1000.);
+			self.last_score_change = -1000;
+			self.target_score += self.last_score_change;
+			self.last_score_time = state.time();
+		}
+
+		// Score.
+		let delta = (utils::DT * (self.target_score - self.score) as f32) as i32;
+		self.score += delta;
+		if delta == 0 && self.score != self.target_score
+		{
+			self.score = self.target_score;
+		}
 
 		// Player input.
 		//let want_left = state.controls.get_action_state(controls::Action::Left) > 0.5;
@@ -333,6 +399,18 @@ impl Map
 		{
 			position.pos += velocity.pos * utils::DT;
 			position.dir += velocity.dir * utils::DT;
+		}
+
+		// Connection cleanup.
+		for (_, connection) in self.world.query::<&mut comps::Connection>().iter()
+		{
+			if let Some(child) = connection.child
+			{
+				if !self.world.contains(child)
+				{
+					connection.child = None;
+				}
+			}
 		}
 
 		// Train logic.
@@ -410,17 +488,129 @@ impl Map
 		}
 
 		// Ground collision.
-		for (_, (position, velocity, _)) in
-			self.world
-				.query_mut::<(&mut comps::Position, &mut comps::Velocity, &comps::Solid)>()
+		let mut multiplier = 1.;
+		let mut delete_tail = vec![];
+		for (e, (position, velocity, solid)) in self
+			.world
+			.query::<(&mut comps::Position, &mut comps::Velocity, &comps::Solid)>()
+			.iter()
 		{
-			// TODO: Better collision.
-			let ground_y = self.cell.get_height(position.pos.x);
-			if position.pos.y > ground_y
+			if let Some((slope, ground_point)) = self.cell.collide(position.pos, solid.size)
 			{
-				position.pos.y = ground_y;
+				let dv = position.pos - ground_point;
+				position.pos = ground_point + dv * solid.size / dv.norm();
+				position.dir = -utils::PI / 2.;
+
+				let is_ship = self.world.get::<&comps::Ship>(e).is_ok();
+				if is_ship
+				{
+					let m = (MAX_VEL - (velocity.pos.y + velocity.pos.x.abs())) / 5.;
+					multiplier = utils::max(1., 0.5 * (m / 0.5).round());
+				}
+
+				let explode = if self.world.get::<&comps::Car>(e).is_ok()
+					|| (is_ship && (velocity.pos.y > MAX_VEL || velocity.pos.x.abs() > MAX_VEL))
+					|| slope > 1.
+				{
+					true
+				}
+				else
+				{
+					false
+				};
 				velocity.pos.x = 0.;
 				velocity.pos.y = 0.;
+
+				delete_tail.push((e, explode));
+			}
+		}
+
+		let mut car_corpses = vec![];
+		for (e, explode) in delete_tail
+		{
+			let mut count = 0usize;
+			let mut tail = e;
+			loop
+			{
+				if let Some((connection, position)) = self
+					.world
+					.query_one::<(&mut comps::Connection, &comps::Position)>(tail)?
+					.get()
+				{
+					// Hack.
+					if explode || tail != self.player
+					{
+						to_die.push(tail);
+					}
+
+					if self.world.get::<&comps::Car>(tail).is_ok()
+					{
+						car_corpses.push((
+							position.pos,
+							state.time() + count as f64 * 0.25,
+							explode,
+						));
+					}
+
+					if let Some(child) = connection.child
+					{
+						tail = child;
+					}
+					else
+					{
+						break;
+					}
+				}
+				else
+				{
+					break;
+				}
+				count += 1;
+			}
+		}
+
+		for (pos, time_to_die, explode) in car_corpses
+		{
+			let r = if explode { 1. } else { 0. };
+			spawn_car_corpse(
+				pos,
+				Vector2::new(
+					self.rng.gen_range(-32.0..32.0),
+					self.rng.gen_range(-32.0..32.0),
+				) * r,
+				time_to_die,
+				multiplier * (1. - r),
+				&mut self.world,
+			)?;
+
+			if !explode
+			{
+				multiplier += 0.5;
+			}
+		}
+
+		// Car corpse
+		for (id, car_corpse) in self.world.query_mut::<&comps::CarCorpse>()
+		{
+			if state.time() > car_corpse.time_to_die
+			{
+				if car_corpse.multiplier != 0.
+				{
+					self.score_message = format!("+{}x{}", 100., car_corpse.multiplier);
+					self.last_score_change = (car_corpse.multiplier as f32 * 100.) as i32;
+					self.target_score += self.last_score_change;
+					self.last_score_time = state.time();
+				}
+				to_die.push(id);
+			}
+		}
+
+		// Time to die
+		for (id, time_to_die) in self.world.query_mut::<&comps::TimeToDie>()
+		{
+			if state.time() > time_to_die.time_to_die
+			{
+				to_die.push(id);
 			}
 		}
 
@@ -446,40 +636,113 @@ impl Map
 	fn draw(&mut self, state: &game_state::GameState) -> Result<()>
 	{
 		state.core.clear_to_color(Color::from_rgb_f(0., 0.0, 0.5));
+		self.cell.draw(state);
 
-		for (_, (position, _)) in self.world.query::<(&comps::Position, &comps::Car)>().iter()
-		{
-			state.prim.draw_filled_circle(
-				position.pos.x,
-				position.pos.y,
-				8.,
-				Color::from_rgb_f(1.0, 1.0, 1.0),
-			);
-		}
-
-		for (_, (position, _)) in self
+		for (_, (position, drawable)) in self
 			.world
-			.query::<(&comps::Position, &comps::Ship)>()
+			.query::<(&comps::Position, &comps::Drawable)>()
 			.iter()
 		{
-			state.prim.draw_filled_circle(
-				position.pos.x,
-				position.pos.y,
-				16.,
-				Color::from_rgb_f(1.0, 0.0, 1.0),
-			);
-			let rot = Rotation2::new(position.dir);
-			let v = rot * Vector2::new(1., 0.) * 16.;
+			match drawable.kind
+			{
+				comps::DrawKind::Ship =>
+				{
+					state.prim.draw_filled_circle(
+						position.pos.x,
+						position.pos.y,
+						16.,
+						Color::from_rgb_f(1.0, 0.0, 1.0),
+					);
+					let rot = Rotation2::new(position.dir);
+					let v = rot * Vector2::new(1., 0.) * 16.;
 
-			state.prim.draw_filled_circle(
-				position.pos.x + v.x,
-				position.pos.y + v.y,
-				8.,
-				Color::from_rgb_f(1.0, 0.0, 1.0),
+					state.prim.draw_filled_circle(
+						position.pos.x + v.x,
+						position.pos.y + v.y,
+						8.,
+						Color::from_rgb_f(1.0, 0.0, 1.0),
+					);
+				}
+				comps::DrawKind::Car =>
+				{
+					state.prim.draw_filled_circle(
+						position.pos.x,
+						position.pos.y,
+						8.,
+						Color::from_rgb_f(1.0, 1.0, 1.0),
+					);
+				}
+			}
+		}
+		if let Ok(velocity) = self.world.query_one_mut::<&comps::Velocity>(self.player)
+		{
+			let (color, alert) = if velocity.pos.x.abs() > MAX_VEL
+			{
+				(Color::from_rgb_f(0.9, 0.1, 0.1), "!")
+			}
+			else
+			{
+				(Color::from_rgb_f(0.9, 0.9, 0.9), "")
+			};
+			state.core.draw_text(
+				state.ui_font(),
+				color,
+				(state.buffer_width() / 2. - 200.).round(),
+				(state.buffer_height() - 32.).round(),
+				FontAlign::Left,
+				&format!("vx: {:.1} m/s{}", velocity.pos.x, alert),
+			);
+			let (color, alert) = if velocity.pos.y > MAX_VEL
+			{
+				(Color::from_rgb_f(0.9, 0.1, 0.1), "!")
+			}
+			else
+			{
+				(Color::from_rgb_f(0.9, 0.9, 0.9), "")
+			};
+			state.core.draw_text(
+				state.ui_font(),
+				color,
+				(state.buffer_width() / 2. + 50.).round(),
+				(state.buffer_height() - 32.).round(),
+				FontAlign::Left,
+				&format!("vy: {:.1} m/s{}", velocity.pos.y, alert),
 			);
 		}
+		state.core.draw_text(
+			state.ui_font(),
+			Color::from_rgb_f(0.9, 0.9, 0.1),
+			(state.buffer_width() / 2. - 100.).round(),
+			32.,
+			FontAlign::Left,
+			"SCORE:",
+		);
+		state.core.draw_text(
+			state.ui_font(),
+			Color::from_rgb_f(0.1, 0.9, 0.1),
+			(state.buffer_width() / 2. + 16.).round(),
+			32.,
+			FontAlign::Left,
+			&format!("{}", self.score),
+		);
 
-		self.cell.draw(state);
+		let f = 1. - utils::clamp((state.time() - self.last_score_time) / 2., 0., 1.) as f32;
+		let color = if self.last_score_change > 0
+		{
+			Color::from_rgba_f(f * 0.9, f * 0.9, f * 0.1, f)
+		}
+		else
+		{
+			Color::from_rgba_f(f * 0.9, f * 0.1, f * 0.1, f)
+		};
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			(state.buffer_width() / 2. + 16.).round(),
+			48.,
+			FontAlign::Left,
+			&self.score_message,
+		);
 
 		Ok(())
 	}
