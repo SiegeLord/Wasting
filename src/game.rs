@@ -130,9 +130,17 @@ impl Game
 	}
 }
 
-pub fn spawn_obj(pos: Point2<f32>, world: &mut hecs::World) -> Result<hecs::Entity>
+pub fn spawn_ship(pos: Point2<f32>, dir: f32, world: &mut hecs::World) -> Result<hecs::Entity>
 {
-	let entity = world.spawn((comps::Position { pos: pos },));
+	let entity = world.spawn((
+		comps::Position { pos: pos, dir: dir },
+		comps::Velocity {
+			pos: Vector2::new(0., 0.),
+			dir: 0.,
+		},
+		comps::Player,
+		comps::AffectedByGravity,
+	));
 	Ok(entity)
 }
 
@@ -248,6 +256,7 @@ struct Map
 {
 	world: hecs::World,
 	cell: MapCell,
+	player: hecs::Entity,
 }
 
 impl Map
@@ -255,11 +264,12 @@ impl Map
 	fn new(state: &mut game_state::GameState) -> Result<Self>
 	{
 		let mut world = hecs::World::new();
-		spawn_obj(Point2::new(100., 100.), &mut world)?;
+		let player = spawn_ship(Point2::new(100., 100.), -utils::PI / 2., &mut world)?;
 
 		Ok(Self {
 			world: world,
 			cell: MapCell::new(state),
+			player: player,
 		})
 	}
 
@@ -268,13 +278,39 @@ impl Map
 	{
 		let mut to_die = vec![];
 
-		// Input.
-		for (_, position) in self.world.query::<&mut comps::Position>().iter()
+		// Player input.
+		//let want_left = state.controls.get_action_state(controls::Action::Left) > 0.5;
+		//let want_right = state.controls.get_action_state(controls::Action::Right) > 0.5;
+		//let want_thrust = state.controls.get_action_state(controls::Action::Thrust) > 0.5;
+
+		if let Ok((position, velocity)) = self
+			.world
+			.query_one_mut::<(&mut comps::Position, &mut comps::Velocity)>(self.player)
 		{
-			if state.controls.get_action_state(controls::Action::Move) > 0.5
-			{
-				position.pos.x += 10.;
-			}
+			let right_left = state.controls.get_action_state(controls::Action::Right)
+				- state.controls.get_action_state(controls::Action::Left);
+			position.dir += 1. * utils::DT * right_left;
+			let rot = Rotation2::new(position.dir);
+			let v = rot * Vector2::new(1., 0.);
+
+			let thrust = state.controls.get_action_state(controls::Action::Thrust);
+			velocity.pos += v * utils::DT * 64. * thrust;
+		}
+		// Gravity.
+		for (_, (velocity, _)) in self
+			.world
+			.query_mut::<(&mut comps::Velocity, &comps::AffectedByGravity)>()
+		{
+			velocity.pos.y += 24. * utils::DT;
+		}
+
+		// Physics.
+		for (_, (position, velocity)) in self
+			.world
+			.query_mut::<(&mut comps::Position, &mut comps::Velocity)>()
+		{
+			position.pos += velocity.pos * utils::DT;
+			position.dir += velocity.dir * utils::DT;
 		}
 
 		// Remove dead entities
@@ -300,13 +336,21 @@ impl Map
 	{
 		state.core.clear_to_color(Color::from_rgb_f(0., 0.0, 0.5));
 
-		// Blob
 		for (_, position) in self.world.query::<&comps::Position>().iter()
 		{
 			state.prim.draw_filled_circle(
 				position.pos.x,
 				position.pos.y,
 				16.,
+				Color::from_rgb_f(1.0, 0.0, 1.0),
+			);
+			let rot = Rotation2::new(position.dir);
+			let v = rot * Vector2::new(1., 0.) * 16.;
+
+			state.prim.draw_filled_circle(
+				position.pos.x + v.x,
+				position.pos.y + v.y,
+				8.,
 				Color::from_rgb_f(1.0, 0.0, 1.0),
 			);
 		}

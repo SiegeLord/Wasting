@@ -6,7 +6,9 @@ use std::fmt;
 #[derive(PartialEq, Eq, Hash, Serialize, Deserialize, Copy, Clone, Debug, PartialOrd, Ord)]
 pub enum Action
 {
-	Move,
+	Left,
+	Right,
+	Thrust,
 }
 
 impl Action
@@ -15,7 +17,9 @@ impl Action
 	{
 		match self
 		{
-			Action::Move => "Move",
+			Action::Left => "Left",
+			Action::Right => "Right",
+			Action::Thrust => "Thrust",
 		}
 	}
 }
@@ -463,8 +467,19 @@ impl Controls
 	{
 		let mut action_to_inputs = BTreeMap::new();
 		action_to_inputs.insert(
-			Action::Move,
-			[Some(Input::Keyboard(allegro::KeyCode::Space)), None],
+			Action::Left,
+			[Some(Input::Keyboard(allegro::KeyCode::Left)), None],
+		);
+		action_to_inputs.insert(
+			Action::Right,
+			[Some(Input::Keyboard(allegro::KeyCode::Right)), None],
+		);
+		action_to_inputs.insert(
+			Action::Thrust,
+			[
+				Some(Input::Keyboard(allegro::KeyCode::Space)),
+				Some(Input::Keyboard(allegro::KeyCode::Up)),
+			],
 		);
 
 		Self {
