@@ -572,7 +572,7 @@ impl Map
 	{
 		let mut world = hecs::World::new();
 		let player = spawn_ship(
-			state.player_sprite(),
+			state.player_ship(),
 			state.player_engine(),
 			Point2::new(state.buffer_width() / 2., 50.),
 			-utils::PI / 2.,
@@ -653,7 +653,7 @@ impl Map
 		if !self.world.contains(self.player)
 		{
 			self.player = spawn_ship(
-				state.player_sprite(),
+				state.player_ship(),
 				state.player_engine(),
 				Point2::new(state.buffer_width() / 2., 50.),
 				-utils::PI / 2.,

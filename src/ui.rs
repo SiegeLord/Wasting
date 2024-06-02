@@ -1,3 +1,7 @@
+// TODO: Debounce option saving
+// TODO: Delayed actions for transitions
+// TODO: Fallbile screen creation.
+
 use crate::error::Result;
 use crate::{components, controls, game_state, utils};
 
@@ -33,6 +37,8 @@ pub enum Action
 	MusicVolume(f32),
 	SfxVolume(f32),
 	CameraSpeed(i32),
+	PlayerShip(i32),
+	PlayerEngine(i32),
 }
 
 #[derive(Clone)]
@@ -794,6 +800,113 @@ impl WidgetList
 	}
 }
 
+pub struct AppearanceMenu
+{
+	widgets: WidgetList,
+}
+
+impl AppearanceMenu
+{
+	pub fn new(state: &mut game_state::GameState) -> Result<Self>
+	{
+		for i in 0..5
+		{
+			state.cache_sprite(&format!("data/ship{}.cfg", i + 1))?;
+			state.cache_sprite(&format!("data/engine{}.cfg", i + 1))?;
+		}
+		let w = BUTTON_WIDTH;
+		let h = BUTTON_HEIGHT;
+
+		let widgets = WidgetList::new(&[
+			&[Widget::Button(Button::new(w, h, "Start", Action::Start))],
+			&[Widget::Label(Label::new(w, h, "Hull"))],
+			&[Widget::Slider(Slider::new(
+				2. * w,
+				h,
+				state.options.player_ship as f32,
+				0.,
+				4.,
+				1.,
+				|f| Action::PlayerShip(f.round() as i32),
+			))],
+			&[Widget::Label(Label::new(w, h, "Engine"))],
+			&[Widget::Slider(Slider::new(
+				2. * w,
+				h,
+				state.options.player_engine as f32,
+				0.,
+				4.,
+				1.,
+				|f| Action::PlayerEngine(f.round() as i32),
+			))],
+			&[Widget::Button(Button::new(w, h, "Back", Action::Back))],
+		]);
+		let mut res = Self { widgets: widgets };
+		res.resize(state);
+		Ok(res)
+	}
+
+	pub fn draw(&self, state: &game_state::GameState)
+	{
+		self.widgets.draw(state);
+		let cx = state.buffer_width() / 2.;
+		let cy = state.buffer_height() / 2.;
+
+		let sprite = state.get_sprite(&state.player_ship()).unwrap();
+		sprite.draw(
+			Point2::new(cx, cy - 128.),
+			sprite.get_variant(state.time()),
+			Color::from_rgb_f(1., 1., 1.),
+			state,
+		);
+		let sprite = state.get_sprite(&state.player_engine()).unwrap();
+		sprite.draw(
+			Point2::new(cx, cy - 128.),
+			sprite.get_variant(state.time()),
+			Color::from_rgb_f(1., 1., 1.),
+			state,
+		);
+	}
+
+	pub fn input(&mut self, state: &mut game_state::GameState, event: &Event) -> Option<Action>
+	{
+		let mut options_changed = false;
+		let action = self.widgets.input(state, event);
+		if let Some(action) = action
+		{
+			match action
+			{
+				Action::PlayerShip(i) =>
+				{
+					state.options.player_ship = i;
+					options_changed = true;
+				}
+				Action::PlayerEngine(i) =>
+				{
+					state.options.player_engine = i;
+					options_changed = true;
+				}
+				_ => return Some(action),
+			}
+		}
+		if options_changed
+		{
+			game_state::save_options(&state.core, &state.options).unwrap();
+		}
+		None
+	}
+
+	pub fn resize(&mut self, state: &game_state::GameState)
+	{
+		let cx = state.buffer_width() / 2.;
+		let cy = state.buffer_height() / 2.;
+
+		self.widgets.pos.x = cx;
+		self.widgets.pos.y = cy + 64.;
+		self.widgets.resize(state);
+	}
+}
+
 pub struct MainMenu
 {
 	widgets: WidgetList,
@@ -807,7 +920,12 @@ impl MainMenu
 		let h = BUTTON_HEIGHT;
 
 		let widgets = WidgetList::new(&[
-			&[Widget::Button(Button::new(w, h, "New Game", Action::Start))],
+			&[Widget::Button(Button::new(
+				w,
+				h,
+				"New Game",
+				Action::Forward(|s| SubScreen::AppearanceMenu(AppearanceMenu::new(s).unwrap())),
+			))],
 			&[Widget::Button(Button::new(
 				w,
 				h,
@@ -1234,6 +1352,7 @@ pub enum SubScreen
 	ControlsMenu(ControlsMenu),
 	OptionsMenu(OptionsMenu),
 	InGameMenu(InGameMenu),
+	AppearanceMenu(AppearanceMenu),
 }
 
 impl SubScreen
@@ -1246,6 +1365,7 @@ impl SubScreen
 			SubScreen::ControlsMenu(s) => s.draw(state),
 			SubScreen::OptionsMenu(s) => s.draw(state),
 			SubScreen::InGameMenu(s) => s.draw(state),
+			SubScreen::AppearanceMenu(s) => s.draw(state),
 		}
 	}
 
@@ -1257,6 +1377,7 @@ impl SubScreen
 			SubScreen::ControlsMenu(s) => s.input(state, event),
 			SubScreen::OptionsMenu(s) => s.input(state, event),
 			SubScreen::InGameMenu(s) => s.input(state, event),
+			SubScreen::AppearanceMenu(s) => s.input(state, event),
 		}
 	}
 
@@ -1268,6 +1389,7 @@ impl SubScreen
 			SubScreen::ControlsMenu(s) => s.resize(state),
 			SubScreen::OptionsMenu(s) => s.resize(state),
 			SubScreen::InGameMenu(s) => s.resize(state),
+			SubScreen::AppearanceMenu(s) => s.resize(state),
 		}
 	}
 }
