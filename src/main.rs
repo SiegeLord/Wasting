@@ -88,7 +88,7 @@ fn real_main() -> Result<()>
 	let mut old_ui_scale = state.options.ui_scale;
 	let mut old_frac_scale = state.options.frac_scale;
 
-	let mut prev_frame_start = state.core.get_time();
+	//let mut prev_frame_start = state.core.get_time();
 	if state.options.grab_mouse
 	{
 		state.core.grab_mouse(&display).ok();
@@ -115,7 +115,7 @@ fn real_main() -> Result<()>
 				}
 			}
 
-			let frame_start = state.core.get_time();
+			//let frame_start = state.core.get_time();
 			state.core.set_target_bitmap(Some(state.buffer1()));
 
 			match &mut cur_screen
@@ -183,8 +183,8 @@ fn real_main() -> Result<()>
 
 			if (state.tick + 1) % 120 == 0
 			{
-				println!("FPS: {:.2}", 120. / (frame_start - prev_frame_start));
-				prev_frame_start = frame_start;
+				//println!("FPS: {:.2}", 120. / (frame_start - prev_frame_start));
+				//prev_frame_start = frame_start;
 			}
 			logics_without_draw = 0;
 			draw = false;

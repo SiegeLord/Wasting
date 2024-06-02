@@ -509,6 +509,14 @@ impl MapCell
 	}
 }
 
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum State
+{
+	Game,
+	Victory,
+	Defeat,
+}
+
 struct Map
 {
 	name: String,
@@ -529,6 +537,11 @@ struct Map
 	day: i32,
 	research: i32,
 	strength: i32,
+	max_train: i32,
+	num_crashes: i32,
+	state: State,
+	num_cars_lost: i32,
+	num_cars_delivered: i32,
 }
 
 fn cell_idx(cell_pos: Point2<usize>) -> usize
@@ -593,11 +606,22 @@ impl Map
 			score_time: 0.,
 			pop_message: "".to_string(),
 			pop_time: 0.,
-			message: "".to_string(),
-			message_time: 0.,
+			message: format!(
+				"Press {} to thrust.",
+				state
+					.options
+					.controls
+					.get_action_string(controls::Action::Thrust)
+			),
+			message_time: state.time(),
 			day: 0,
 			research: 0,
 			strength: 1,
+			max_train: 0,
+			num_cars_lost: 0,
+			num_cars_delivered: 0,
+			num_crashes: 0,
+			state: State::Game,
 		})
 	}
 
@@ -609,6 +633,10 @@ impl Map
 	fn logic(&mut self, state: &mut game_state::GameState)
 		-> Result<Option<game_state::NextScreen>>
 	{
+		if self.state != State::Game
+		{
+			return Ok(None);
+		}
 		let mut to_die = vec![];
 
 		// Player respawn.
@@ -623,6 +651,7 @@ impl Map
 			self.last_score_change = -1000;
 			self.target_score += self.last_score_change;
 			self.score_time = state.time();
+			self.num_crashes += 1;
 		}
 
 		// Score.
@@ -825,6 +854,7 @@ impl Map
 		}
 
 		let mut car_corpses = vec![];
+		let mut train_size = -1i32;
 		for (e, explode) in delete_tail
 		{
 			let mut count = 0usize;
@@ -844,6 +874,15 @@ impl Map
 
 					if self.world.get::<&comps::Car>(tail).is_ok()
 					{
+						if explode
+						{
+							self.num_cars_lost += 1;
+						}
+						else
+						{
+							train_size += 1;
+							self.num_cars_delivered += 1;
+						}
 						car_corpses.push((
 							position.pos,
 							state.time() + count as f64 * 0.25,
@@ -867,6 +906,7 @@ impl Map
 				count += 1;
 			}
 		}
+		self.max_train = utils::max(self.max_train, train_size);
 
 		let mut add_pop = 0;
 		for (pos, time_to_die, explode) in car_corpses
@@ -971,6 +1011,40 @@ impl Map
 			println!("d: {} r: {}", self.day, self.research);
 
 			let mut special_day = false;
+			if self.day == 1
+			{
+				self.message = format!(
+					"Press {}/{} to rotate.",
+					state
+						.options
+						.controls
+						.get_action_string(controls::Action::Left),
+					state
+						.options
+						.controls
+						.get_action_string(controls::Action::Right)
+				);
+				self.message_time = state.time();
+				special_day = true;
+			}
+			else if self.day == 2
+			{
+				self.message = "Deliver supplies to\npopulated planets.".to_string();
+				self.message_time = state.time();
+				special_day = true;
+			}
+			else if self.day == 3
+			{
+				self.message = format!(
+					"Hold {} to see sector map.",
+					state
+						.options
+						.controls
+						.get_action_string(controls::Action::ShowMap),
+				);
+				self.message_time = state.time();
+				special_day = true;
+			}
 			if self.research >= 250 && old_research < 250
 			{
 				self.message = "Researchers see hints\nof a possible cure.".to_string();
@@ -994,19 +1068,20 @@ impl Map
 				self.message = format!("A triumph of science!\nYou have saved {}!.", self.name);
 				self.message_time = state.time();
 				self.strength = 0;
+				self.state = State::Victory;
 				special_day = true;
 			}
 
 			if self.research < 1000
 			{
-				if self.day >= 70 && old_day < 70
+				if self.day >= 150 && old_day < 150
 				{
 					self.message = "The pathogen mutates to\nunfathomable deadliness.".to_string();
 					self.message_time = state.time();
 					self.strength = 2;
 					special_day = true;
 				}
-				else if self.day >= 100 && old_day < 100
+				else if self.day >= 200 && old_day < 200
 				{
 					self.message =
 						"The disease evolves to\napocalyptic level of strength!".to_string();
@@ -1065,6 +1140,7 @@ impl Map
 					self.name
 				);
 				self.message_time = state.time();
+				self.state = State::Defeat;
 			}
 
 			let start_pos;
@@ -1183,6 +1259,231 @@ impl Map
 	fn draw(&mut self, state: &game_state::GameState) -> Result<()>
 	{
 		state.core.clear_to_color(Color::from_rgb_f(0., 0.0, 0.05));
+
+		match self.state
+		{
+			State::Game =>
+			{
+				self.draw_game(state)?;
+			}
+			State::Victory =>
+			{
+				self.draw_victory(state)?;
+			}
+			State::Defeat =>
+			{
+				self.draw_defeat(state)?;
+			}
+		}
+
+		Ok(())
+	}
+
+	fn draw_victory(&mut self, state: &game_state::GameState) -> Result<()>
+	{
+		let lh = state.ui_font().get_line_height() as f32;
+		let center = Point2::new(state.buffer_width(), state.buffer_height()) / 2.;
+
+		let mut y = center.y - 100.;
+
+		let color = Color::from_rgb_f(0.9, 0.5, 0.5);
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			"Victory!",
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Score: {}", self.score),
+		);
+		y += lh;
+
+		let mut num_planets = 0;
+		let mut total_pop = 0;
+		for cell in &self.cells
+		{
+			total_pop += cell.population;
+			if cell.population > 0
+			{
+				num_planets += 1;
+			}
+		}
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Population: {}", total_pop),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Planets: {}", num_planets),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Days: {}", self.day),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Crashes: {}", self.num_crashes),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Longest train: {}", self.max_train),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Supplies delivered: {}", self.num_cars_delivered),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Supplies lost: {}", self.num_cars_lost),
+		);
+		//y += lh;
+
+		Ok(())
+	}
+	fn draw_defeat(&mut self, state: &game_state::GameState) -> Result<()>
+	{
+		let lh = state.ui_font().get_line_height() as f32;
+		let center = Point2::new(state.buffer_width(), state.buffer_height()) / 2.;
+
+		let mut y = center.y - 100.;
+
+		let color = Color::from_rgb_f(0.9, 0.5, 0.5);
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			"Defeat!",
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Score: {}", self.score),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Cure: {}%", 100 * self.research / 1000),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Days: {}", self.day),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Crashes: {}", self.num_crashes),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Longest train: {}", self.max_train),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Supplies delivered: {}", self.num_cars_delivered),
+		);
+		y += lh;
+
+		state.core.draw_text(
+			state.ui_font(),
+			color,
+			center.x,
+			y.round(),
+			FontAlign::Centre,
+			&format!("Supplies lost: {}", self.num_cars_lost),
+		);
+		//y += lh;
+		Ok(())
+	}
+
+	fn draw_game(&mut self, state: &game_state::GameState) -> Result<()>
+	{
 		self.cell().draw(state);
 		let lh = state.ui_font().get_line_height() as f32;
 		let center = Point2::new(state.buffer_width(), state.buffer_height()) / 2.;
