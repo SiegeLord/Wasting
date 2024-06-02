@@ -89,3 +89,16 @@ pub struct Drawable
 {
 	pub kind: DrawKind,
 }
+
+#[derive(Clone, Debug)]
+pub struct Sprite
+{
+	pub sprite: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct Engine
+{
+	pub on: bool,
+	pub sprite: String,
+}

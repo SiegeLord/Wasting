@@ -143,8 +143,13 @@ impl Game
 	}
 }
 
-pub fn spawn_ship(pos: Point2<f32>, dir: f32, world: &mut hecs::World) -> Result<hecs::Entity>
+pub fn spawn_ship(
+	sprite: String, engine: String, pos: Point2<f32>, dir: f32, world: &mut hecs::World,
+	state: &mut game_state::GameState,
+) -> Result<hecs::Entity>
 {
+	state.cache_sprite(&sprite)?;
+	state.cache_sprite(&engine)?;
 	let entity = world.spawn((
 		comps::Position { pos: pos, dir: dir },
 		comps::Velocity {
@@ -157,8 +162,10 @@ pub fn spawn_ship(pos: Point2<f32>, dir: f32, world: &mut hecs::World) -> Result
 			kind: comps::CollideKind::Ship,
 			size: 16.,
 		},
-		comps::Drawable {
-			kind: comps::DrawKind::Ship,
+		comps::Sprite { sprite: sprite },
+		comps::Engine {
+			sprite: engine,
+			on: false,
 		},
 		comps::Connection { child: None },
 	));
@@ -565,9 +572,12 @@ impl Map
 	{
 		let mut world = hecs::World::new();
 		let player = spawn_ship(
+			state.player_sprite(),
+			state.player_engine(),
 			Point2::new(state.buffer_width() / 2., 50.),
 			-utils::PI / 2.,
 			&mut world,
+			state,
 		)?;
 
 		let mut rng = StdRng::seed_from_u64(thread_rng().gen());
@@ -643,9 +653,12 @@ impl Map
 		if !self.world.contains(self.player)
 		{
 			self.player = spawn_ship(
+				state.player_sprite(),
+				state.player_engine(),
 				Point2::new(state.buffer_width() / 2., 50.),
 				-utils::PI / 2.,
 				&mut self.world,
+				state,
 			)?;
 			self.score_message = format!("-{}", 1000.);
 			self.last_score_change = -1000;
@@ -667,9 +680,11 @@ impl Map
 		let want_right = state.controls.get_action_state(controls::Action::Right) > 0.5;
 		let want_thrust = state.controls.get_action_state(controls::Action::Thrust) > 0.5;
 
-		if let Ok((position, velocity)) = self
-			.world
-			.query_one_mut::<(&mut comps::Position, &mut comps::Velocity)>(self.player)
+		if let Ok((position, velocity, engine)) = self.world.query_one_mut::<(
+			&mut comps::Position,
+			&mut comps::Velocity,
+			&mut comps::Engine,
+		)>(self.player)
 		{
 			let right_left = want_right as i32 as f32 - want_left as i32 as f32;
 			position.dir += 1.5 * utils::DT * right_left;
@@ -678,6 +693,8 @@ impl Map
 
 			let thrust = want_thrust as i32 as f32;
 			velocity.pos += v * utils::DT * 96. * thrust;
+
+			engine.on = want_thrust;
 		}
 
 		// Gravity.
@@ -1084,7 +1101,7 @@ impl Map
 				else if self.day >= 200 && old_day < 200
 				{
 					self.message =
-						"The disease evolves to\napocalyptic level of strength!".to_string();
+						"The disease evolves to an\napocalyptic level of strength!".to_string();
 					self.message_time = state.time();
 					self.strength = 3;
 					special_day = true;
@@ -1524,6 +1541,45 @@ impl Map
 				}
 			}
 		}
+
+		for (_, (position, sprite)) in self
+			.world
+			.query::<(&comps::Position, &comps::Sprite)>()
+			.iter()
+		{
+			let sprite = state.get_sprite(&sprite.sprite).unwrap();
+			let variant = sprite.get_variant(state.time());
+			// HACK: I drew the sprites wrong.
+			sprite.draw_rotated(
+				position.pos,
+				variant,
+				Color::from_rgb_f(1., 1., 1.),
+				position.dir + utils::PI / 2.,
+				state,
+			);
+		}
+
+		for (_, (position, engine)) in self
+			.world
+			.query::<(&comps::Position, &comps::Engine)>()
+			.iter()
+		{
+			if !engine.on
+			{
+				continue;
+			}
+			let sprite = state.get_sprite(&engine.sprite).unwrap();
+			let variant = sprite.get_variant(state.time());
+			// HACK: I drew the sprites wrong.
+			sprite.draw_rotated(
+				position.pos,
+				variant,
+				Color::from_rgb_f(1., 1., 1.),
+				position.dir + utils::PI / 2.,
+				state,
+			);
+		}
+
 		if let Ok(velocity) = self.world.query_one_mut::<&comps::Velocity>(self.player)
 		{
 			let (color, alert) = if velocity.pos.norm() > MAX_VEL

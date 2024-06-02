@@ -12,6 +12,7 @@ struct SpriteDesc
 	bitmap: String,
 	width: i32,
 	height: i32,
+	frame_rate: f32,
 	#[serde(default)]
 	center_x: i32,
 	#[serde(default)]
@@ -69,6 +70,11 @@ impl Sprite
 		self.variants.len() as i32
 	}
 
+	pub fn get_variant(&self, time: f64) -> i32
+	{
+		((time * self.desc.frame_rate as f64) % (self.num_variants() as f64)) as i32
+	}
+
 	pub fn draw(&self, pos: Point2<f32>, variant: i32, tint: Color, state: &GameState)
 	{
 		let w = self.desc.width as f32;
@@ -84,6 +90,32 @@ impl Sprite
 			h,
 			pos.x - self.desc.center_x as f32 - w / 2.,
 			pos.y - self.desc.center_y as f32 - h / 2.,
+			Flag::zero(),
+		);
+	}
+
+	pub fn draw_rotated(
+		&self, pos: Point2<f32>, variant: i32, tint: Color, angle: f32, state: &GameState,
+	)
+	{
+		let w = self.desc.width as f32;
+		let h = self.desc.height as f32;
+		let atlas_bmp = &self.variants[variant as usize];
+
+		state.core.draw_tinted_scaled_rotated_bitmap_region(
+			&state.atlas.pages[atlas_bmp.page].bitmap,
+			atlas_bmp.start.x,
+			atlas_bmp.start.y,
+			w,
+			h,
+			tint,
+			self.desc.center_x as f32 + w / 2.,
+			self.desc.center_y as f32 + h / 2.,
+			pos.x,
+			pos.y,
+			1.,
+			1.,
+			angle,
 			Flag::zero(),
 		);
 	}

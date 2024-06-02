@@ -27,6 +27,8 @@ pub struct Options
 	pub grab_mouse: bool,
 	pub ui_scale: f32,
 	pub frac_scale: bool,
+	pub player_sprite: i32,
+	pub player_engine: i32,
 
 	pub controls: controls::Controls,
 }
@@ -48,6 +50,8 @@ impl Default for Options
 			ui_scale: 1.,
 			frac_scale: true,
 			controls: controls::Controls::new(),
+			player_sprite: 4,
+			player_engine: 4,
 		}
 	}
 }
@@ -278,5 +282,15 @@ impl GameState
 	pub fn time(&self) -> f64
 	{
 		self.tick as f64 * utils::DT as f64
+	}
+
+	pub fn player_sprite(&self) -> String
+	{
+		format!("data/ship{}.cfg", self.options.player_sprite + 1)
+	}
+
+	pub fn player_engine(&self) -> String
+	{
+		format!("data/engine{}.cfg", self.options.player_engine + 1)
 	}
 }
