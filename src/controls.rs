@@ -9,6 +9,7 @@ pub enum Action
 	Left,
 	Right,
 	Thrust,
+	ShowMap,
 }
 
 impl Action
@@ -20,6 +21,7 @@ impl Action
 			Action::Left => "Left",
 			Action::Right => "Right",
 			Action::Thrust => "Thrust",
+			Action::ShowMap => "Show Map",
 		}
 	}
 }
@@ -480,6 +482,10 @@ impl Controls
 				Some(Input::Keyboard(allegro::KeyCode::Space)),
 				Some(Input::Keyboard(allegro::KeyCode::Up)),
 			],
+		);
+		action_to_inputs.insert(
+			Action::ShowMap,
+			[Some(Input::Keyboard(allegro::KeyCode::Tab)), None],
 		);
 
 		Self {
