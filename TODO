@@ -1,3 +1,16 @@
-tutorial messages
-end screen
-custom screen
+count starting pop/planets
+
+gfx:
+
+explosion
+deliver
+backgrounds
+
+sfx:
+
+engine(s)
+explosion
+deliver
+ui1
+ui2
+pickup

@@ -33,6 +33,12 @@ pub struct Car
 	pub attached: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct Doodad
+{
+	pub sprite: String,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct AffectedByGravity;
 

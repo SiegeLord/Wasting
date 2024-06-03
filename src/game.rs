@@ -172,36 +172,68 @@ pub fn spawn_ship(
 	Ok(entity)
 }
 
-pub fn spawn_car(pos: Point2<f32>, world: &mut hecs::World) -> Result<hecs::Entity>
+pub fn spawn_car(
+	pos: Point2<f32>, rng: &mut impl Rng, world: &mut hecs::World,
+	state: &mut game_state::GameState,
+) -> Result<hecs::Entity>
 {
+	let sprite = format!("data/car{}.cfg", rng.gen_range(1..5));
+	state.cache_sprite(&sprite)?;
 	let entity = world.spawn((
-		comps::Position { pos: pos, dir: 0. },
+		comps::Position {
+			pos: pos,
+			dir: rng.gen_range(0.0..2.0 * utils::PI),
+		},
 		comps::Velocity {
 			pos: Vector2::new(0., 0.),
-			dir: 0.,
+			dir: *[-1., 1.].choose(rng).unwrap(),
 		},
 		comps::Car { attached: false },
 		comps::Solid {
 			kind: comps::CollideKind::Car,
 			size: 8.,
 		},
-		comps::Drawable {
-			kind: comps::DrawKind::Car,
-		},
+		comps::Sprite { sprite: sprite },
 		comps::Connection { child: None },
 	));
 	Ok(entity)
 }
 
+pub fn spawn_star(
+	pos: Point2<f32>, seed: usize, world: &mut hecs::World, state: &mut game_state::GameState,
+) -> Result<hecs::Entity>
+{
+	let sprite = format!("data/star{}.cfg", 1 + seed % 5);
+	state.cache_sprite(&sprite)?;
+	let entity = world.spawn((
+		comps::Position { pos: pos, dir: 0. },
+		comps::Doodad { sprite: sprite },
+	));
+	Ok(entity)
+}
+
+pub fn spawn_building(
+	position: comps::Position, seed: usize, world: &mut hecs::World,
+	state: &mut game_state::GameState,
+) -> Result<hecs::Entity>
+{
+	let sprite = format!("data/building{}.cfg", 1 + seed % 2);
+	state.cache_sprite(&sprite)?;
+	let entity = world.spawn((position, comps::Doodad { sprite: sprite }));
+	Ok(entity)
+}
+
 pub fn spawn_car_corpse(
-	pos: Point2<f32>, vel: Vector2<f32>, time_to_die: f64, multiplier: f32, world: &mut hecs::World,
+	position: comps::Position, sprite: comps::Sprite, speed_mult: f32, time_to_die: f64,
+	multiplier: f32, rng: &mut impl Rng, world: &mut hecs::World,
 ) -> Result<hecs::Entity>
 {
 	let entity = world.spawn((
-		comps::Position { pos: pos, dir: 0. },
-		comps::Velocity { pos: vel, dir: 0. },
-		comps::Drawable {
-			kind: comps::DrawKind::Car,
+		position,
+		sprite,
+		comps::Velocity {
+			pos: Vector2::new(rng.gen_range(-32.0..32.0), rng.gen_range(-32.0..32.0)) * speed_mult,
+			dir: rng.gen_range(-2.0..2.0) * speed_mult,
 		},
 		comps::CarCorpse {
 			multiplier: multiplier,
@@ -224,9 +256,10 @@ struct MapCell
 	name: String,
 	ground: Vec<(f32, f32)>,
 	gravity: Gravity,
-	circle: bool,
 	population: i32,
 	center: Point2<f32>,
+	stars: Vec<Point2<f32>>,
+	buildings: Vec<comps::Position>,
 }
 
 impl MapCell
@@ -234,10 +267,20 @@ impl MapCell
 	fn new(names: &mut Vec<String>, rng: &mut impl Rng, state: &mut game_state::GameState) -> Self
 	{
 		let num_points = 96;
-		let mut ground = Vec::with_capacity(num_points);
-		let circle;
+		let mut ground = Vec::with_capacity(num_points + 2);
+		let mut buildings = Vec::with_capacity(9);
 		let population;
 		let name;
+
+		let num_stars = rng.gen_range(10..20);
+		let mut stars = Vec::with_capacity(num_stars);
+		for _ in 0..num_stars
+		{
+			stars.push(Point2::new(
+				rng.gen_range(0.0..state.buffer_width()),
+				rng.gen_range(0.0..state.buffer_height()),
+			));
+		}
 
 		let center = Point2::new(
 			state.buffer_width() / 2. + rng.gen_range(-16.0..16.0),
@@ -326,8 +369,18 @@ impl MapCell
 						}
 					})
 					.unwrap();
-				circle = false;
+				ground.push((state.buffer_width(), state.buffer_height()));
+				ground.push((0., state.buffer_height()));
 				name = format!("{} System", names.pop().unwrap_or("Maximus".to_string()));
+
+				for i in 0..9
+				{
+					let idx = 5 + i * 9;
+					buildings.push(comps::Position {
+						pos: Point2::new(ground[idx].0, ground[idx].1),
+						dir: -utils::PI / 2.,
+					});
+				}
 			}
 			Gravity::Center(_) =>
 			{
@@ -397,24 +450,34 @@ impl MapCell
 						}
 					})
 					.unwrap();
-				circle = true;
 				name = format!("{} System", names.pop().unwrap_or("Maximus".to_string()));
+				for i in 0..9
+				{
+					let idx = 5 + i * 9;
+					let pos = ground[idx];
+					buildings.push(comps::Position {
+						pos: Point2::new(pos.0, pos.1),
+						dir: (pos.1 - center.y).atan2(pos.0 - center.x),
+					});
+				}
 			}
 			Gravity::None =>
 			{
 				population = 0;
-				circle = false;
 				name = "Empty Space".to_string();
 			}
 		};
+
+		buildings.shuffle(rng);
 
 		Self {
 			name: name,
 			population: population,
 			center: center,
-			circle: circle,
 			ground: ground,
 			gravity: *gravity,
+			stars: stars,
+			buildings: buildings,
 		}
 	}
 
@@ -445,32 +508,60 @@ impl MapCell
 
 	fn draw(&self, state: &game_state::GameState)
 	{
-		if self.circle
+		if self.ground.is_empty()
 		{
-			state.prim.draw_polygon(
-				&self.ground,
-				LineJoinType::Bevel,
-				Color::from_rgb_f(1., 1., 1.),
-				2.,
-				0.5,
-			);
+			return;
 		}
-		else
+		// HACK
+		let mut reversed = self.ground.clone();
+		reversed.reverse();
+		state
+			.prim
+			.draw_filled_polygon(&reversed, Color::from_rgb_f(0., 0., 0.05));
+		match self.gravity
 		{
-			state.prim.draw_polyline(
-				&self.ground,
-				LineJoinType::Bevel,
-				LineCapType::Round,
-				Color::from_rgb_f(1., 1., 1.),
-				2.,
-				0.5,
-			);
+			Gravity::Down(_) =>
+			{
+				state.prim.draw_polyline(
+					&reversed[2..],
+					LineJoinType::Bevel,
+					LineCapType::Round,
+					Color::from_rgb_f(0., 0., 0.9),
+					2.,
+					0.5,
+				);
+			}
+			_ =>
+			{
+				state.prim.draw_polygon(
+					&reversed,
+					LineJoinType::Bevel,
+					Color::from_rgb_f(0., 0., 0.9),
+					2.,
+					0.5,
+				);
+			}
 		}
 	}
 
-	fn spawn_cars(&self, _total_pop: i32, rng: &mut impl Rng, world: &mut hecs::World)
-		-> Result<()>
+	fn spawn_objects(
+		&self, _total_pop: i32, rng: &mut impl Rng, world: &mut hecs::World,
+		state: &mut game_state::GameState,
+	) -> Result<()>
 	{
+		for (i, p) in self.stars.iter().enumerate()
+		{
+			spawn_star(*p, i, world, state)?;
+		}
+
+		for (i, p) in self.buildings[..self.population as usize]
+			.iter()
+			.enumerate()
+		{
+			dbg!(p);
+			spawn_building(*p, i, world, state)?;
+		}
+
 		let choices = [(0, 20), (1, 20), (2, 10), (3, 10), (10, 3), (20, 1)];
 		let num = choices.choose_weighted(rng, |n_w| n_w.1).unwrap().0;
 		match self.gravity
@@ -485,7 +576,9 @@ impl MapCell
 								rng.gen_range(-256.0..256.0),
 								rng.gen_range(-256.0..256.0),
 							),
+						rng,
 						world,
+						state,
 					)?;
 				}
 			}
@@ -497,7 +590,9 @@ impl MapCell
 					let r = 256.;
 					spawn_car(
 						self.center + Vector2::new(r * theta.cos(), r * theta.sin()),
+						rng,
 						world,
+						state,
 					)?;
 				}
 			}
@@ -507,7 +602,9 @@ impl MapCell
 				{
 					spawn_car(
 						Point2::new(rng.gen_range(-256.0..256.0), rng.gen_range(0.0..256.0)),
+						rng,
 						world,
+						state,
 					)?;
 				}
 			}
@@ -600,7 +697,7 @@ impl Map
 		}
 
 		let total_pop = get_total_pop(&cells);
-		cells[0].spawn_cars(total_pop, &mut rng, &mut world)?;
+		cells[0].spawn_objects(total_pop, &mut rng, &mut world, state)?;
 
 		Ok(Self {
 			name: format!("{} Sector", names.pop().unwrap_or("Bratus".to_string())),
@@ -771,8 +868,9 @@ impl Map
 				dv = Vector2::new(1., 0.);
 			}
 
-			let new_dv = 24. * dv / dv.norm();
-			child_position.pos = pos + new_dv;
+			let dv = dv.normalize();
+			child_position.pos = pos + 24. * dv;
+			child_position.dir = dv.y.atan2(dv.x);
 		}
 
 		// Object-object collision
@@ -878,10 +976,10 @@ impl Map
 			let mut tail = e;
 			loop
 			{
-				if let Some((connection, position)) = self
+				let mut q = self
 					.world
-					.query_one::<(&mut comps::Connection, &comps::Position)>(tail)?
-					.get()
+					.query_one::<(&mut comps::Connection, &comps::Position)>(tail)?;
+				if let Some((connection, position)) = q.get()
 				{
 					// Hack.
 					if explode || tail != self.player
@@ -889,7 +987,10 @@ impl Map
 						to_die.push(tail);
 					}
 
-					if self.world.get::<&comps::Car>(tail).is_ok()
+					if let Some((_, sprite)) = self
+						.world
+						.query_one::<(&comps::Car, &comps::Sprite)>(tail)?
+						.get()
 					{
 						if explode
 						{
@@ -901,7 +1002,8 @@ impl Map
 							self.num_cars_delivered += 1;
 						}
 						car_corpses.push((
-							position.pos,
+							position.clone(),
+							sprite.clone(),
 							state.time() + count as f64 * 0.25,
 							explode,
 						));
@@ -926,17 +1028,16 @@ impl Map
 		self.max_train = utils::max(self.max_train, train_size);
 
 		let mut add_pop = 0;
-		for (pos, time_to_die, explode) in car_corpses
+		for (position, sprite, time_to_die, explode) in car_corpses
 		{
 			let r = if explode { 1. } else { 0. };
 			spawn_car_corpse(
-				pos,
-				Vector2::new(
-					self.rng.gen_range(-32.0..32.0),
-					self.rng.gen_range(-32.0..32.0),
-				) * r,
+				position,
+				sprite,
+				r,
 				time_to_die,
 				multiplier * (1. - r),
+				&mut self.rng,
 				&mut self.world,
 			)?;
 
@@ -1237,11 +1338,16 @@ impl Map
 					to_die.push(e);
 				}
 			}
+			for (e, _) in self.world.query_mut::<&comps::Doodad>()
+			{
+				to_die.push(e);
+			}
 			let total_pop = get_total_pop(&self.cells);
-			self.cells[cell_idx(self.cell_pos)].spawn_cars(
+			self.cells[cell_idx(self.cell_pos)].spawn_objects(
 				total_pop,
 				&mut self.rng,
 				&mut self.world,
+				state,
 			)?;
 		}
 
@@ -1501,46 +1607,27 @@ impl Map
 
 	fn draw_game(&mut self, state: &game_state::GameState) -> Result<()>
 	{
-		self.cell().draw(state);
 		let lh = state.ui_font().get_line_height() as f32;
 		let center = Point2::new(state.buffer_width(), state.buffer_height()) / 2.;
 
-		for (_, (position, drawable)) in self
+		for (_, (position, star)) in self
 			.world
-			.query::<(&comps::Position, &comps::Drawable)>()
+			.query::<(&comps::Position, &comps::Doodad)>()
 			.iter()
 		{
-			match drawable.kind
-			{
-				comps::DrawKind::Ship =>
-				{
-					state.prim.draw_filled_circle(
-						position.pos.x,
-						position.pos.y,
-						16.,
-						Color::from_rgb_f(1.0, 0.0, 1.0),
-					);
-					let rot = Rotation2::new(position.dir);
-					let v = rot * Vector2::new(1., 0.) * 16.;
-
-					state.prim.draw_filled_circle(
-						position.pos.x + v.x,
-						position.pos.y + v.y,
-						8.,
-						Color::from_rgb_f(1.0, 0.0, 1.0),
-					);
-				}
-				comps::DrawKind::Car =>
-				{
-					state.prim.draw_filled_circle(
-						position.pos.x,
-						position.pos.y,
-						8.,
-						Color::from_rgb_f(1.0, 1.0, 1.0),
-					);
-				}
-			}
+			let sprite = state.get_sprite(&star.sprite).unwrap();
+			let variant = sprite.get_variant(state.time());
+			// HACK: I drew the sprites wrong.
+			sprite.draw_rotated(
+				position.pos,
+				variant,
+				Color::from_rgb_f(1., 1., 1.),
+				position.dir + utils::PI / 2.,
+				state,
+			);
 		}
+
+		self.cell().draw(state);
 
 		for (_, (position, sprite)) in self
 			.world
@@ -1763,13 +1850,13 @@ impl Map
 				{
 					state
 						.prim
-						.draw_filled_circle(fx, fy, 20., Color::from_rgb_f(0.9, 0.9, 0.9));
+						.draw_circle(fx, fy, 20., Color::from_rgb_f(0.0, 0.0, 0.9), 2.);
 				}
 				Gravity::Center(_) =>
 				{
 					state
 						.prim
-						.draw_filled_circle(fx, fy, 13., Color::from_rgb_f(0.9, 0.9, 0.9));
+						.draw_circle(fx, fy, 13., Color::from_rgb_f(0.0, 0.0, 0.9), 2.);
 				}
 				_ => (),
 			}
@@ -1778,7 +1865,7 @@ impl Map
 			{
 				state.core.draw_text(
 					state.ui_font(),
-					Color::from_rgb_f(0.1, 0.1, 0.9),
+					Color::from_rgb_f(0.9, 0.9, 0.9),
 					fx.round(),
 					(fy - lh / 2.).round(),
 					FontAlign::Centre,
