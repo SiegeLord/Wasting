@@ -239,7 +239,7 @@ impl GameState
 		self.ui_font = Some(utils::load_ttf_font(
 			&self.ttf,
 			"data/Energon.ttf",
-			(-24. * self.options.ui_scale) as i32,
+			(-16. * self.options.ui_scale) as i32,
 		)?);
 		Ok(())
 	}

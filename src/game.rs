@@ -1674,6 +1674,7 @@ impl Map
 		let lh = state.ui_font().get_line_height() as f32;
 		let center = Point2::new(state.buffer_width(), state.buffer_height()) / 2.;
 
+		state.core.hold_bitmap_drawing(true);
 		for (_, (position, star)) in self
 			.world
 			.query::<(&comps::Position, &comps::Doodad)>()
@@ -1690,9 +1691,11 @@ impl Map
 				state,
 			);
 		}
+		state.core.hold_bitmap_drawing(false);
 
 		self.cell().draw(state);
 
+		state.core.hold_bitmap_drawing(true);
 		for (_, (position, sprite)) in self
 			.world
 			.query::<(&comps::Position, &comps::Sprite)>()
@@ -1730,6 +1733,7 @@ impl Map
 				state,
 			);
 		}
+		state.core.hold_bitmap_drawing(false);
 
 		if let Ok(velocity) = self.world.query_one_mut::<&comps::Velocity>(self.player)
 		{

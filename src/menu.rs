@@ -74,7 +74,7 @@ impl Menu
 
 	pub fn draw(&mut self, state: &game_state::GameState) -> Result<()>
 	{
-		state.core.clear_to_color(Color::from_rgb_f(0., 0., 0.5));
+		state.core.clear_to_color(Color::from_rgb_f(0., 0., 0.05));
 		if self.subscreens.subscreens.len() == 1
 		{
 			let sprite = "data/title.cfg";
