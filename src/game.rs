@@ -1,6 +1,7 @@
 use crate::error::Result;
 use crate::{astar, components as comps, controls, game_state, sprite, ui, utils};
 use allegro::*;
+use allegro_audio::*;
 use allegro_font::*;
 use allegro_primitives::*;
 use na::{
@@ -26,6 +27,7 @@ impl Game
 {
 	pub fn new(state: &mut game_state::GameState) -> Result<Self>
 	{
+		state.cache_bitmap("data/bkg1.png")?;
 		Ok(Self {
 			map: Map::new(state)?,
 			show_map: false,
@@ -120,6 +122,9 @@ impl Game
 		if !self.subscreens.is_empty()
 		{
 			state.core.clear_to_color(Color::from_rgb_f(0.0, 0.0, 0.0));
+			let bitmap = state.get_bitmap("data/bkg1.png").unwrap();
+			state.core.draw_bitmap(bitmap, 0., 0., Flag::zero());
+
 			self.subscreens.draw(state);
 		}
 		else
@@ -592,7 +597,6 @@ impl MapCell
 			.iter()
 			.enumerate()
 		{
-			dbg!(p);
 			spawn_building(*p, i, world, state)?;
 		}
 
@@ -682,6 +686,7 @@ struct Map
 	num_cars_delivered: i32,
 	start_planets: i32,
 	start_pop: i32,
+	engine_sound: SampleInstance,
 }
 
 fn cell_idx(cell_pos: Point2<usize>) -> usize
@@ -773,6 +778,13 @@ impl Map
 			state: State::Game,
 			start_pop: total_pop,
 			start_planets: planets,
+			engine_sound: state.sfx.play_continuous_sound(
+				&format!(
+					"data/engine{}.ogg",
+					[1, 1, 2, 2, 1][state.options.player_engine as usize]
+				),
+				0.,
+			)?,
 		})
 	}
 
@@ -828,7 +840,7 @@ impl Map
 		)>(self.player)
 		{
 			let right_left = want_right as i32 as f32 - want_left as i32 as f32;
-			position.dir += 1.5 * utils::DT * right_left;
+			position.dir += 2. * utils::DT * right_left;
 			let rot = Rotation2::new(position.dir);
 			let v = rot * Vector2::new(1., 0.);
 
@@ -836,6 +848,9 @@ impl Map
 			velocity.pos += v * utils::DT * 96. * thrust;
 
 			engine.on = want_thrust;
+			self.engine_sound
+				.set_gain(if want_thrust { 1. } else { 0. })
+				.unwrap();
 		}
 
 		// Gravity.
@@ -945,6 +960,7 @@ impl Map
 			if self.world.get::<&comps::Ship>(e1).is_ok()
 				&& Ok(false) == self.world.get::<&comps::Car>(e2).map(|c| c.attached)
 			{
+				state.sfx.play_sound("data/pickup.ogg")?;
 				let ship = e1;
 				let car = e2;
 
@@ -1034,7 +1050,7 @@ impl Map
 
 					if explode && tail == self.player
 					{
-						explosions.push((true, position.pos));
+						explosions.push((true, 1.0, position.pos));
 					}
 
 					if let Some((_, sprite)) = self
@@ -1042,6 +1058,7 @@ impl Map
 						.query_one::<(&comps::Car, &comps::Sprite)>(tail)?
 						.get()
 					{
+						count += 1;
 						if explode
 						{
 							self.num_cars_lost += 1;
@@ -1072,7 +1089,6 @@ impl Map
 				{
 					break;
 				}
-				count += 1;
 			}
 		}
 		self.max_train = utils::max(self.max_train, train_size);
@@ -1121,7 +1137,7 @@ impl Map
 		{
 			if state.time() > car_corpse.time_to_die
 			{
-				explosions.push((car_corpse.explode, position.pos));
+				explosions.push((car_corpse.explode, car_corpse.multiplier, position.pos));
 				if !car_corpse.explode
 				{
 					self.score_message = format!("+{}x{}", 100., car_corpse.multiplier);
@@ -1133,14 +1149,18 @@ impl Map
 			}
 		}
 
-		for (explode, pos) in explosions
+		for (explode, multiplier, pos) in explosions
 		{
 			if explode
 			{
+				state.sfx.play_sound("data/explosion.ogg")?;
 				spawn_explosion(pos, &mut self.world, state)?;
 			}
 			else
 			{
+				state
+					.sfx
+					.play_sound_with_pitch("data/deliver.ogg", 1. + (multiplier - 1.) / 2.)?;
 				spawn_deliver(pos, &mut self.world, state)?;
 			}
 		}
@@ -1247,6 +1267,7 @@ impl Map
 			}
 			else if self.research >= 1000 && old_research < 1000
 			{
+				state.sfx.play_sound("data/victory.ogg")?;
 				self.message = format!("A triumph of science!\nYou have saved {}!.", self.name);
 				self.message_time = state.time();
 				self.strength = 0;
@@ -1317,6 +1338,7 @@ impl Map
 			}
 			if get_total_pop(&self.cells) == 0 && !pop_indices.is_empty()
 			{
+				state.sfx.play_sound("data/defeat.ogg")?;
 				self.message = format!(
 					"{} has no more people\nleft to save.\nYour services are no longer necessary.",
 					self.name
@@ -1748,9 +1770,9 @@ impl Map
 			state.core.draw_text(
 				state.ui_font(),
 				color,
-				32.,
+				(state.buffer_width() / 2.).round(),
 				(state.buffer_height() - lh - 32.).round(),
-				FontAlign::Left,
+				FontAlign::Centre,
 				&format!("Speed: {:.1} m/s{}", velocity.pos.norm(), alert),
 			);
 		}
@@ -1765,7 +1787,7 @@ impl Map
 		state.core.draw_text(
 			state.ui_font(),
 			Color::from_rgb_f(0.1, 0.9, 0.1),
-			160.,
+			(96. * state.options.ui_scale).round(),
 			32.,
 			FontAlign::Left,
 			&format!("{}", self.score),
@@ -1852,6 +1874,8 @@ impl Map
 	fn draw_map(&self, state: &game_state::GameState) -> Result<()>
 	{
 		state.core.clear_to_color(Color::from_rgb_f(0.0, 0.0, 0.0));
+		let bitmap = state.get_bitmap("data/bkg1.png").unwrap();
+		state.core.draw_bitmap(bitmap, 0., 0., Flag::zero());
 		let center = Point2::new(state.buffer_width(), state.buffer_height()) / 2.;
 
 		state.core.draw_text(

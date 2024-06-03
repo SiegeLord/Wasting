@@ -1,13 +1,16 @@
 gfx:
 
-backgrounds
-new font
+better HUD
 
 sfx:
 
 engine(s)
-explosion
-deliver
-ui1
-ui2
-pickup
+    explosion
+    deliver
+    ui1
+    ui2
+    pickup
+    defeat
+    victory
+
+https://www.dafont.com/neoletters.font

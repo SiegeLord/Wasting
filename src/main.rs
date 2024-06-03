@@ -33,6 +33,15 @@ enum Screen
 fn real_main() -> Result<()>
 {
 	let mut state = game_state::GameState::new()?;
+	state.sfx.cache_sample("data/ui1.ogg")?;
+	state.sfx.cache_sample("data/ui2.ogg")?;
+	state.sfx.cache_sample("data/explosion.ogg")?;
+	state.sfx.cache_sample("data/defeat.ogg")?;
+	state.sfx.cache_sample("data/deliver.ogg")?;
+	state.sfx.cache_sample("data/victory.ogg")?;
+	state.sfx.cache_sample("data/pickup.ogg")?;
+	state.sfx.cache_sample("data/engine1.ogg")?;
+	state.sfx.cache_sample("data/engine2.ogg")?;
 
 	let mut flags = OPENGL | RESIZABLE | PROGRAMMABLE_PIPELINE;
 

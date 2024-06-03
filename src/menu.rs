@@ -22,9 +22,8 @@ impl Menu
 	pub fn new(state: &mut game_state::GameState) -> Result<Self>
 	{
 		state.paused = false;
-		state.sfx.cache_sample("data/ui1.ogg")?;
-		state.sfx.cache_sample("data/ui2.ogg")?;
 		state.cache_sprite("data/title.cfg")?;
+		state.cache_bitmap("data/bkg1.png")?;
 
 		let mut subscreens = ui::SubScreens::new();
 		subscreens.push(ui::SubScreen::MainMenu(ui::MainMenu::new(state)));
@@ -75,6 +74,8 @@ impl Menu
 	pub fn draw(&mut self, state: &game_state::GameState) -> Result<()>
 	{
 		state.core.clear_to_color(Color::from_rgb_f(0., 0., 0.05));
+		let bitmap = state.get_bitmap("data/bkg1.png").unwrap();
+		state.core.draw_bitmap(bitmap, 0., 0., Flag::zero());
 		if self.subscreens.subscreens.len() == 1
 		{
 			let sprite = "data/title.cfg";

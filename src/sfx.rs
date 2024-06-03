@@ -112,6 +112,24 @@ impl Sfx
 		Ok(())
 	}
 
+	pub fn play_sound_with_pitch(&mut self, name: &str, pitch: f32) -> Result<()>
+	{
+		self.cache_sample(name)?;
+		let sample = self.samples.get(name).unwrap();
+		let instance = self
+			.sink
+			.play_sample(
+				sample,
+				self.sfx_volume,
+				None,
+				thread_rng().gen_range(0.9..1.1) * pitch,
+				Playmode::Once,
+			)
+			.map_err(|_| "Couldn't play sound".to_string())?;
+		self.sample_instances.push(instance);
+		Ok(())
+	}
+
 	pub fn play_sound(&mut self, name: &str) -> Result<()>
 	{
 		self.cache_sample(name)?;
