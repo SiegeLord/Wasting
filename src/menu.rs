@@ -21,6 +21,9 @@ impl Menu
 {
 	pub fn new(state: &mut game_state::GameState) -> Result<Self>
 	{
+		state.sfx.set_music_file("data/space_man-herb.xm", 1.);
+		state.sfx.play_music()?;
+
 		state.paused = false;
 		state.cache_sprite("data/title.cfg")?;
 		state.cache_bitmap("data/bkg1.png")?;

@@ -651,6 +651,21 @@ impl MapCell
 	}
 }
 
+fn play_music(idx: i32, state: &mut game_state::GameState) -> Result<()>
+{
+	let files = [
+		("data/starsing.xm", 0.25),
+		("data/lamb_-_among_the_stars.xm.ogg", 1.),
+		("data/lamb_-_loneliness.xm.ogg", 1.),
+		("data/lamb_-_autumn_rain.xm.ogg", 1.),
+	];
+
+	let (file, volume) = files[(idx as usize) % files.len()];
+	state.sfx.set_music_file(file, volume);
+	state.sfx.play_music()?;
+	Ok(())
+}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum State
 {
@@ -687,6 +702,7 @@ struct Map
 	start_planets: i32,
 	start_pop: i32,
 	engine_sound: SampleInstance,
+	cur_music: i32,
 }
 
 fn cell_idx(cell_pos: Point2<usize>) -> usize
@@ -746,6 +762,8 @@ impl Map
 		let total_pop = get_total_pop(&cells);
 		cells[0].spawn_objects(total_pop, &mut rng, &mut world, state)?;
 
+		play_music(0, state)?;
+
 		Ok(Self {
 			name: format!("{} Sector", names.pop().unwrap_or("Bratus".to_string())),
 			world: world,
@@ -785,6 +803,7 @@ impl Map
 				),
 				0.,
 			)?,
+			cur_music: 0,
 		})
 	}
 
@@ -1198,17 +1217,24 @@ impl Map
 		let gravity = self.cell().gravity;
 		if let Some((dir, pos)) = dir_and_pos
 		{
+			if self.cell().population > 0
+			{
+				self.cur_music += 1;
+				play_music(self.cur_music, state)?;
+			}
 			let mut pop_indices = vec![];
+			let mut total_pop = 0;
 			for (i, cell) in self.cells.iter().enumerate()
 			{
 				if cell.population > 0
 				{
 					pop_indices.push(i);
 				}
+				total_pop += cell.population;
 			}
 			let old_research = self.research;
 			let old_day = self.day;
-			self.research += pop_indices.len() as i32;
+			self.research += utils::max(pop_indices.len() as i32, total_pop / 5);
 			self.day += 1;
 			println!("d: {} r: {}", self.day, self.research);
 
@@ -1277,14 +1303,14 @@ impl Map
 
 			if self.research < 1000
 			{
-				if self.day >= 150 && old_day < 150
+				if self.day >= 75 && old_day < 75
 				{
 					self.message = "The pathogen mutates to\nunfathomable deadliness.".to_string();
 					self.message_time = state.time();
 					self.strength = 2;
 					special_day = true;
 				}
-				else if self.day >= 200 && old_day < 200
+				else if self.day >= 100 && old_day < 100
 				{
 					self.message =
 						"The disease evolves to an\napocalyptic level of strength!".to_string();
@@ -1794,20 +1820,36 @@ impl Map
 		);
 		state.core.draw_text(
 			state.ui_font(),
-			Color::from_rgb_f(0.9, 0.9, 0.1),
+			Color::from_rgb_f(0.9, 0.9, 0.9),
 			state.buffer_width() - 32.,
 			32.,
 			FontAlign::Right,
 			&self.cell().name,
 		);
-		let gravity = match self.cell().gravity
+		let (gravity, strength) = match self.cell().gravity
 		{
-			Gravity::None => "None".to_string(),
-			Gravity::Down(v) | Gravity::Center(v) => (v as i32).to_string(),
+			Gravity::None => ("None".to_string(), 0),
+			Gravity::Down(v) | Gravity::Center(v) => ((v as i32).to_string(), v as i32),
+		};
+		let color = if strength == 0
+		{
+			Color::from_rgb_f(0.5, 0.5, 0.5)
+		}
+		else if strength < 22
+		{
+			Color::from_rgb_f(0.1, 0.9, 0.1)
+		}
+		else if strength < 28
+		{
+			Color::from_rgb_f(0.9, 0.9, 0.1)
+		}
+		else
+		{
+			Color::from_rgb_f(0.9, 0.1, 0.1)
 		};
 		state.core.draw_text(
 			state.ui_font(),
-			Color::from_rgb_f(0.9, 0.9, 0.1),
+			color,
 			state.buffer_width() - 32.,
 			32. + lh,
 			FontAlign::Right,
@@ -1815,9 +1857,21 @@ impl Map
 		);
 		if self.cell().population > 0
 		{
+			let color = if self.cell().population < 3
+			{
+				Color::from_rgb_f(0.9, 0.1, 0.1)
+			}
+			else if self.cell().population < 7
+			{
+				Color::from_rgb_f(0.9, 0.9, 0.1)
+			}
+			else
+			{
+				Color::from_rgb_f(0.1, 0.9, 0.1)
+			};
 			state.core.draw_text(
 				state.ui_font(),
-				Color::from_rgb_f(0.9, 0.9, 0.1),
+				color,
 				state.buffer_width() - 32.,
 				32. + lh * 2.,
 				FontAlign::Right,
@@ -1955,9 +2009,21 @@ impl Map
 
 			if cell.population > 0
 			{
+				let color = if cell.population < 3
+				{
+					Color::from_rgb_f(0.9, 0.1, 0.1)
+				}
+				else if cell.population < 7
+				{
+					Color::from_rgb_f(0.9, 0.9, 0.1)
+				}
+				else
+				{
+					Color::from_rgb_f(0.1, 0.9, 0.1)
+				};
 				state.core.draw_text(
 					state.ui_font(),
-					Color::from_rgb_f(0.9, 0.9, 0.9),
+					color,
 					fx.round(),
 					(fy - lh / 2.).round(),
 					FontAlign::Centre,

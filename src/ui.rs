@@ -1206,18 +1206,6 @@ impl OptionsMenu
 					|i| Action::UiScale(i),
 				)),
 			],
-			vec![
-				Widget::Label(Label::new(w, h, "Scroll")),
-				Widget::Slider(Slider::new(
-					w,
-					h,
-					state.options.camera_speed as f32,
-					1.,
-					10.,
-					1.,
-					|i| Action::CameraSpeed(i as i32),
-				)),
-			],
 			vec![Widget::Button(Button::new(w, h, "Back", Action::Back))],
 		];
 
@@ -1255,11 +1243,6 @@ impl OptionsMenu
 				{
 					state.options.music_volume = v;
 					state.sfx.set_music_volume(v);
-					options_changed = true;
-				}
-				Action::CameraSpeed(i) =>
-				{
-					state.options.camera_speed = i;
 					options_changed = true;
 				}
 				Action::SfxVolume(v) =>

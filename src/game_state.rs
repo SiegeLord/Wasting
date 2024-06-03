@@ -23,7 +23,6 @@ pub struct Options
 	pub vsync_method: i32,
 	pub sfx_volume: f32,
 	pub music_volume: f32,
-	pub camera_speed: i32,
 	pub grab_mouse: bool,
 	pub ui_scale: f32,
 	pub frac_scale: bool,
@@ -38,14 +37,13 @@ impl Default for Options
 	fn default() -> Self
 	{
 		Self {
-			fullscreen: false,
+			fullscreen: true,
 			width: 960,
 			height: 864,
 			play_music: true,
 			vsync_method: 2,
 			sfx_volume: 1.,
 			music_volume: 1.,
-			camera_speed: 4,
 			grab_mouse: false,
 			ui_scale: 1.,
 			frac_scale: true,
@@ -147,8 +145,6 @@ impl GameState
 			.map_err(|_| "Couldn't install mouse".to_string())?;
 
 		let sfx = sfx::Sfx::new(options.sfx_volume, options.music_volume, &core)?;
-		//sfx.set_music_file("data/lemonade-sinus.xm");
-		//sfx.play_music()?;
 
 		let controls = controls::ControlsHandler::new(options.controls.clone());
 		Ok(Self {
