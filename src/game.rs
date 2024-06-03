@@ -212,6 +212,38 @@ pub fn spawn_star(
 	Ok(entity)
 }
 
+pub fn spawn_deliver(
+	pos: Point2<f32>, world: &mut hecs::World, state: &mut game_state::GameState,
+) -> Result<hecs::Entity>
+{
+	let sprite = "data/deliver.cfg".to_string();
+	state.cache_sprite(&sprite)?;
+	let entity = world.spawn((
+		comps::Position { pos: pos, dir: 0. },
+		comps::Doodad { sprite: sprite },
+		comps::TimeToDie {
+			time_to_die: state.time() + 0.5,
+		},
+	));
+	Ok(entity)
+}
+
+pub fn spawn_explosion(
+	pos: Point2<f32>, world: &mut hecs::World, state: &mut game_state::GameState,
+) -> Result<hecs::Entity>
+{
+	let sprite = "data/explosion.cfg".to_string();
+	state.cache_sprite(&sprite)?;
+	let entity = world.spawn((
+		comps::Position { pos: pos, dir: 0. },
+		comps::Doodad { sprite: sprite },
+		comps::TimeToDie {
+			time_to_die: state.time() + 0.5,
+		},
+	));
+	Ok(entity)
+}
+
 pub fn spawn_building(
 	position: comps::Position, seed: usize, world: &mut hecs::World,
 	state: &mut game_state::GameState,
@@ -224,10 +256,11 @@ pub fn spawn_building(
 }
 
 pub fn spawn_car_corpse(
-	position: comps::Position, sprite: comps::Sprite, speed_mult: f32, time_to_die: f64,
+	position: comps::Position, sprite: comps::Sprite, explode: bool, time_to_die: f64,
 	multiplier: f32, rng: &mut impl Rng, world: &mut hecs::World,
 ) -> Result<hecs::Entity>
 {
+	let speed_mult = if explode { 1. } else { 0. };
 	let entity = world.spawn((
 		position,
 		sprite,
@@ -238,6 +271,7 @@ pub fn spawn_car_corpse(
 		comps::CarCorpse {
 			multiplier: multiplier,
 			time_to_die: time_to_die,
+			explode: explode,
 		},
 	));
 	Ok(entity)
@@ -646,6 +680,8 @@ struct Map
 	state: State,
 	num_cars_lost: i32,
 	num_cars_delivered: i32,
+	start_planets: i32,
+	start_pop: i32,
 }
 
 fn cell_idx(cell_pos: Point2<usize>) -> usize
@@ -691,9 +727,15 @@ impl Map
 		names.shuffle(&mut rng);
 
 		let mut cells = vec![];
+		let mut planets = 0;
 		for _ in 0..SECTOR_SIZE * SECTOR_SIZE
 		{
-			cells.push(MapCell::new(&mut names, &mut rng, state));
+			let cell = MapCell::new(&mut names, &mut rng, state);
+			if cell.population > 0
+			{
+				planets += 1;
+			}
+			cells.push(cell);
 		}
 
 		let total_pop = get_total_pop(&cells);
@@ -729,6 +771,8 @@ impl Map
 			num_cars_delivered: 0,
 			num_crashes: 0,
 			state: State::Game,
+			start_pop: total_pop,
+			start_planets: planets,
 		})
 	}
 
@@ -970,6 +1014,7 @@ impl Map
 
 		let mut car_corpses = vec![];
 		let mut train_size = -1i32;
+		let mut explosions = vec![];
 		for (e, explode) in delete_tail
 		{
 			let mut count = 0usize;
@@ -985,6 +1030,11 @@ impl Map
 					if explode || tail != self.player
 					{
 						to_die.push(tail);
+					}
+
+					if explode && tail == self.player
+					{
+						explosions.push((true, position.pos));
 					}
 
 					if let Some((_, sprite)) = self
@@ -1030,13 +1080,12 @@ impl Map
 		let mut add_pop = 0;
 		for (position, sprite, time_to_die, explode) in car_corpses
 		{
-			let r = if explode { 1. } else { 0. };
 			spawn_car_corpse(
 				position,
 				sprite,
-				r,
+				explode,
 				time_to_die,
-				multiplier * (1. - r),
+				multiplier,
 				&mut self.rng,
 				&mut self.world,
 			)?;
@@ -1066,11 +1115,14 @@ impl Map
 		}
 
 		// Car corpse
-		for (id, car_corpse) in self.world.query_mut::<&comps::CarCorpse>()
+		for (id, (position, car_corpse)) in self
+			.world
+			.query_mut::<(&comps::Position, &comps::CarCorpse)>()
 		{
 			if state.time() > car_corpse.time_to_die
 			{
-				if car_corpse.multiplier != 0.
+				explosions.push((car_corpse.explode, position.pos));
+				if !car_corpse.explode
 				{
 					self.score_message = format!("+{}x{}", 100., car_corpse.multiplier);
 					self.last_score_change = (car_corpse.multiplier as f32 * 100.) as i32;
@@ -1078,6 +1130,18 @@ impl Map
 					self.score_time = state.time();
 				}
 				to_die.push(id);
+			}
+		}
+
+		for (explode, pos) in explosions
+		{
+			if explode
+			{
+				spawn_explosion(pos, &mut self.world, state)?;
+			}
+			else
+			{
+				spawn_deliver(pos, &mut self.world, state)?;
 			}
 		}
 
@@ -1448,7 +1512,7 @@ impl Map
 			center.x,
 			y.round(),
 			FontAlign::Centre,
-			&format!("Population: {}", total_pop),
+			&format!("Population: {}/{}", total_pop, self.start_pop),
 		);
 		y += lh;
 
@@ -1458,7 +1522,7 @@ impl Map
 			center.x,
 			y.round(),
 			FontAlign::Centre,
-			&format!("Planets: {}", num_planets),
+			&format!("Planets: {}/{}", num_planets, self.start_planets),
 		);
 		y += lh;
 

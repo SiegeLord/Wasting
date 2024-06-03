@@ -75,6 +75,7 @@ pub struct CarCorpse
 {
 	pub multiplier: f32,
 	pub time_to_die: f64,
+	pub explode: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
