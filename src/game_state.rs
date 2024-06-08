@@ -38,8 +38,8 @@ impl Default for Options
 	{
 		Self {
 			fullscreen: true,
-			width: 960,
-			height: 864,
+			width: 1280,
+			height: 960,
 			play_music: true,
 			vsync_method: 2,
 			sfx_volume: 1.,
