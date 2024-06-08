@@ -45,6 +45,7 @@ impl Game
 		}
 		else
 		{
+			self.map.engine_sound.set_gain(0.).unwrap();
 			Ok(None)
 		}
 	}
@@ -817,6 +818,7 @@ impl Map
 	{
 		if self.state != State::Game
 		{
+			self.engine_sound.set_gain(0.).unwrap();
 			return Ok(None);
 		}
 		let mut to_die = vec![];
@@ -1297,8 +1299,11 @@ impl Map
 				self.message = format!("A triumph of science!\nYou have saved {}!.", self.name);
 				self.message_time = state.time();
 				self.strength = 0;
-				self.state = State::Victory;
 				special_day = true;
+			}
+			else if self.research >= 1000
+			{
+				self.state = State::Victory;
 			}
 
 			if self.research < 1000
